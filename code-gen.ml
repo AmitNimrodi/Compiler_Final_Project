@@ -282,11 +282,13 @@ and varScanner vari =
   (*       HERE WE ARE FINISHED WITH THE FREE_TABLE!!!    *)
   
 
+let rec code_gen_maker consts fvars e =
+  let somthing = (code_genScanner consts fvars e) in
+  "hello: Yoav Is King"
 
 
 
-
-and code_genScanner exp = 
+and code_genScanner consts fvars exp = 
   match exp with
   | Const'(sexpr)                             -> 
                             (const_genHelper sexpr)
@@ -296,11 +298,11 @@ and code_genScanner exp =
                             (varBound_genHelper majo mino)
   | Var'(VarFree(name))                       -> 
                             (varFree_genHelper name)
-  | Set'(VarParam(name,mino), valu)           -> 
+  | Set'(Var'(VarParam(name,mino)), valu)     -> 
                             (setvarParam_genHelper mino valu)
-  | Set'(VarBound(name,majo,mino), valu)      ->
+  | Set'(Var'(VarBound(name,majo,mino)), valu)->
                             (setvarBound_genHelper majo mino valu)
-  | Set'(VarFree(name), valu)                 -> 
+  | Set'(Var'(VarFree(name)), valu)           -> 
                             (setvarFree_genHelper name valu)
   | Seq'(listOfexprs)                         -> 
                             (seq_genHelper listOfexprs)
@@ -308,9 +310,9 @@ and code_genScanner exp =
                             (or_genHelper listOfexprs)
   | If'(test,dit,dif)                         -> 
                             (if_genHelper test dit dif)
-  | BoxGet'(Var'(head))                       -> 
+  | BoxGet'(head)                       -> 
                             (boxget_genHelper head)
-  | BoxSet'(Var'(head),valu)                  -> 
+  | BoxSet'(head,valu)                  -> 
                             (boxset_genHelper head valu)
   | LambdaSimple'(lambdaParams, bodyOfLambda) -> 
                             (simple_genHelper lambdaParams bodyOfLambda)
@@ -319,13 +321,80 @@ and code_genScanner exp =
   | LambdaOpt'(lambdaParams, vs, bodyOfLambda)-> 
                             (opt_genHelper lambdaParams vs bodyOfLambda)
   | ApplicTP'(rator, rands)                   ->
-                            (applic_genHelper rator rands)
+                            (applicTP_genHelper rator rands)
   
   
-  | Def'(head, valu)                          -> ???
-  | Box'(name)                                -> ???
+  | Def'(head, valu)                          -> raise X_syntax_error
+  | Box'(name)                                -> raise X_syntax_error
   
   
+
+
+and const_genHelper sexpr =
+  raise X_syntax_error
+
+
+and varParam_genHelper mino =
+  raise X_syntax_error
+
+
+and varBound_genHelper majo mino =
+  raise X_syntax_error
+
+
+and varFree_genHelper name =
+  raise X_syntax_error
+
+
+and setvarParam_genHelper mino valu =
+  raise X_syntax_error
+
+
+and setvarBound_genHelper majo mino valu =
+  raise X_syntax_error
+
+
+and setvarFree_genHelper name valu =
+  raise X_syntax_error
+
+
+and seq_genHelper listOfexprs =
+  raise X_syntax_error
+
+
+and or_genHelper listOfexprs =
+  raise X_syntax_error
+
+
+and if_genHelper test dit dif =
+  raise X_syntax_error
+
+
+and boxget_genHelper head =
+  raise X_syntax_error
+
+
+and boxset_genHelper head valu =
+  raise X_syntax_error
+
+
+and simple_genHelper lambdaParams bodyOfLambda =
+  raise X_syntax_error
+
+
+and applic_genHelper rator rands =
+  raise X_syntax_error
+
+
+  
+and opt_genHelper lambdaParams vs bodyOfLambda =
+  raise X_syntax_error
+
+
+  
+and applicTP_genHelper rator rands =
+  raise X_syntax_error
+
 
 
   
