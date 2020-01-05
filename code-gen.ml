@@ -61,18 +61,23 @@ let num_char_size = (type_size + word_size) ;;
 
 (* TEST:  cleanDupes [1;1;1;2;3;4;5;4;3;3;6;2;2]  
 TODO: might not know how to equalise objects - use expr'_eq instead *)
-let rec cleanDupes sexprList = 
+let rec cleanDupes sexprList =
+  let a = cleanDupesinner (List.rev sexprList) in
+    (List.rev a)
+
+and cleanDupesinner sexprList = 
   match sexprList with
   | []      -> []
   | a :: b  -> (
     match (List.mem a b) with
-    | true  -> ( cleanDupes b )
-    | false -> ( List.append [a] (cleanDupes b) )
+    | true  -> ( cleanDupesinner b )
+    | false -> ( List.append [a] (cleanDupesinner b) )
     )
+;;
 
 let rec const_table_maker listOfExprs = 
   let constSexprsList   = ( findConsts listOfExprs ) in
-  let dupelessConstList = ( cleanDupes (List.rev constSexprsList) ) in
+  let dupelessConstList = ( cleanDupes constSexprsList ) in
   let extendedList      = ( extendList dupelessConstList) in
   let tupledList        = ( tupleListMaker extendedList ) in
   let basicList         = [ (Void, (0, "MAKE_VOID"));                  (Sexpr(Nil), (1, "MAKE_NIL"));
@@ -195,25 +200,13 @@ let fixed_free_labels =
    "+"; "*"; "-"; "/"; "<"; "="
 (* you can add yours here *)];;
 
-let rec cleanDupesFree sexprList =
-  let a = cleanDupes (List.rev sexprList) in
-    (List.rev a)
 
-and cleanDupes sexprList = 
-  match sexprList with
-  | []      -> []
-  | a :: b  -> (
-    match (List.mem a b) with
-    | true  -> ( cleanDupes b )
-    | false -> ( List.append [a] (cleanDupes b) )
-    )
-;;
 
 
 let rec free_table_maker listOfExprs = 
   let freeSexprsList      = ( findFree listOfExprs ) in
   let fixedFreeSexprsList = ( List.append fixed_free_labels freeSexprsList ) in
-  let dupelessFreeList    = ( cleanDupesFree fixedFreeSexprsList ) in
+  let dupelessFreeList    = ( cleanDupes fixedFreeSexprsList ) in
   let tupledList          = ( tupleListMaker dupelessFreeList 0 ) in
   
   tupledList
