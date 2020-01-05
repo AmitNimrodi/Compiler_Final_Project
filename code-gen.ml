@@ -48,11 +48,6 @@ module Code_Gen : CODE_GEN = struct
   (*       HERE WE ARE STARTING WITH THE ASSIGNMENT!!!    *)
   (*       HERE WE ARE STARTING WITH THE ASSIGNMENT!!!    *)
   (*       HERE WE ARE STARTING WITH THE ASSIGNMENT!!!    *)
-  
-
-
-
-
 
 
 let type_size = 1;;
@@ -79,7 +74,8 @@ let rec const_table_maker listOfExprs =
   let constSexprsList   = ( findConsts listOfExprs ) in
   let dupelessConstList = ( cleanDupes constSexprsList ) in
   let extendedList      = ( extendList dupelessConstList) in
-  let tupledList        = ( tupleListMaker extendedList ) in
+  let dupelessExtendedList = ( cleanDupes extendedList ) in
+  let tupledList        = ( tupleListMaker dupelessExtendedList ) in
   let basicList         = [ (Void, (0, "MAKE_VOID"));                  (Sexpr(Nil), (1, "MAKE_NIL"));
                             (Sexpr(Bool(false)), (2, "MAKE_BOOL(0)")); (Sexpr(Bool(true)), (4, "MAKE_BOOL(1)")) ] in 
   let offsetFixedList   = offsetFixer  ( List.append basicList tupledList ) in
@@ -89,7 +85,7 @@ and findConsts listOfExpr =
 match listOfExprs with
   | []     -> []
   | a :: b -> ( List.append (constScanner a) (findConsts b) ) 
-   
+  
    (* input: [Sexpr(Pair(Number(Int(1)), Pair(Number(Int(2)), Nil))); Sexpr(Symbol("ab"))]
       output: [Sexpr(Number(Int(1))); Sexpr(Number(Int(2))); Sexpr(Pair(Number(Int(2)), Nil));
              Sexpr(Pair(Number(Int(1)), Pair(Number(Int(2)), Nil))); Sexpr(String("ab")); Sexpr(Symbol("ab"))]    *)
@@ -135,12 +131,12 @@ and tupleMaker sexpr = (* TODO: which strings should be inputted with each type?
   | Char(valu)                  -> (sexpr, (num_char_size, "MAKE_CHAR("^  (Char.escaped valu) ^")"))
   | String(str)                 -> (let len = (length str) in (sexpr, ((type_size + len), "MAKE_STRING("^str^")")))
   | Symbol(str)                 -> (let len = (length str) in (sexpr, ((type_size + len), "MAKE_SYMBOL("^str^")")))
-  | Pair(a,b)                   -> ()
-  | TaggedSexpr 
-  | TagRef 
+  | Pair(a,b)                   -> raise X_syntax_error
+  | TaggedSexpr                 -> raise X_syntax_error
+  | TagRef                      -> raise X_syntax_error
   | any                         -> raise X_syntax_error
 
-(*TEST:  offsetFixer [("a",(3,"a")); ("b",(4,"f")); ("c",(8,"f"))];;   *)
+(*TEST:  offsetFixer [("a",(3,"a")); ("b",(4,"f")); ("c",(3,"f"))];;   *)
 and offsetFixer lis = 
   let byteCounter = ref 6 in (* we start with 6 because of the basics table. *)
   let fixerFunc countVal (sexpr, (oldVal, string))  =
