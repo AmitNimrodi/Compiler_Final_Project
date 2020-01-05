@@ -125,6 +125,177 @@ and seqConstScanHelper listOfExprs =
 ;;
 
 
+
+
+  
+  (*       HERE WE ARE FINISHED WITH THE CONST_TABLE!!!    *)
+  (*       HERE WE ARE FINISHED WITH THE CONST_TABLE!!!    *)
+  (*       HERE WE ARE FINISHED WITH THE CONST_TABLE!!!    *)
+  (*       HERE WE ARE FINISHED WITH THE CONST_TABLE!!!    *)
+  (*       HERE WE ARE FINISHED WITH THE CONST_TABLE!!!    *)
+  (*       HERE WE ARE FINISHED WITH THE CONST_TABLE!!!    *)
+  (*       HERE WE ARE FINISHED WITH THE CONST_TABLE!!!    *)
+  (*       HERE WE ARE FINISHED WITH THE CONST_TABLE!!!    *)
+  
+
+let fixed_free_labels = 
+  ["boolean?"; "float?"; "integer?"; "pair?"; "null?"; "char?";
+   "string?"; "procedure?"; "symbol?"; "string-length";
+   "string-ref"; "string-set!"; "make-string"; "symbol->string"; 
+   "char->integer"; "integer->char"; "eq?"; 
+   "+"; "*"; "-"; "/"; "<"; "="
+(* you can add yours here *)];;
+
+let rec cleanDupesFree sexprList =
+  let a = cleanDupes (List.rev sexprList) in
+    (List.rev a)
+
+and cleanDupes sexprList = 
+  match sexprList with
+  | []      -> []
+  | a :: b  -> (
+    match (List.mem a b) with
+    | true  -> ( cleanDupes b )
+    | false -> ( List.append [a] (cleanDupes b) )
+    )
+;;
+
+
+let rec free_table_maker listOfExprs = 
+  let freeSexprsList      = ( findFree listOfExprs ) in
+  let fixedFreeSexprsList = ( List.append fixed_free_labels freeSexprsList ) in
+  let dupelessFreeList    = ( cleanDupesFree fixedFreeSexprsList ) in
+  let tupledList          = ( tupleListMaker dupelessFreeList 0 ) in
+  
+  tupledList
+  
+
+
+and findFree listOfExprs = 
+  match listOfExprs with
+  | []     -> []
+  | a :: b -> ( List.append (freeScanner a) (findFree b) ) 
+
+
+and tupleListMaker listOfExprs n = 
+  match listOfExprs with
+  | []     -> []
+  | a :: b -> ( List.append [(a,n)] (tupleListMaker b (n+1) ) ) 
+
+
+and freeScanner exp = 
+  match exp with
+  | Var'(vari) -> (varScanner vari)
+
+  | Const'(sexpr) -> []
+  | Box'(name)    -> []
+  | BoxGet'(name) -> []
+  
+  | BoxSet'(name,valu) -> 
+      (freeScanner valu)
+  | Set'(vari, valu) ->
+      (freeScanner valu) (*   set is expr*expr, but we look at it as a var*expr   *)
+  | Def'(head, valu) ->
+      (freeScanner valu) (*   def is expr*expr, but we look at it as a var*expr   *)
+  | LambdaSimple'(lambdaParams, bodyOfLambda) ->
+      (freeScanner bodyOfLambda)
+  | LambdaOpt'(lambdaParams,vs, bodyOfLambda) ->
+      (freeScanner bodyOfLambda)
+  
+  | Applic'(rator, rands) ->
+      ( List.append (freeScanner rator) (seqFreeScanHelper rands) )
+  | ApplicTP'(rator, rands) ->
+      ( List.append (freeScanner rator) (seqFreeScanHelper rands) )
+  | Seq'(listOfexprs) -> 
+      (seqFreeScanHelper listOfexprs)
+  | If'(test,dit,dif) ->
+      (seqFreeScanHelper [test;dit;dif] )
+  | Or'(listOfexprs)  ->
+      (seqFreeScanHelper listOfexprs)
+  
+
+ 
+and seqFreeScanHelper listOfExprs = 
+  match listOfExprs with
+  | []     -> []
+  | a :: b -> ( List.append (freeScanner a) (seqFreeScanHelper b) )
+
+  
+and varScanner vari = 
+  match vari with
+  | VarBound(name,maj,mino) -> []
+  | VarParam(name,mino) -> []
+  | VarFree(name) -> [name]
+
+  
+;;
+  
+  (*       HERE WE ARE FINISHED WITH THE FREE_TABLE!!!    *)
+  (*       HERE WE ARE FINISHED WITH THE FREE_TABLE!!!    *)
+  (*       HERE WE ARE FINISHED WITH THE FREE_TABLE!!!    *)
+  (*       HERE WE ARE FINISHED WITH THE FREE_TABLE!!!    *)
+  (*       HERE WE ARE FINISHED WITH THE FREE_TABLE!!!    *)
+  (*       HERE WE ARE FINISHED WITH THE FREE_TABLE!!!    *)
+  (*       HERE WE ARE FINISHED WITH THE FREE_TABLE!!!    *)
+  (*       HERE WE ARE FINISHED WITH THE FREE_TABLE!!!    *)
+  
+
+
+
+
+
+and code_genScanner exp = 
+  match exp with
+  | Const'(sexpr)                             -> 
+                            (const_genHelper sexpr)
+  | Var'(VarParam(name,mino))                 -> 
+                            (varParam_genHelper mino)
+  | Var'(VarBound(name,majo,mino))            -> 
+                            (varBound_genHelper majo mino)
+  | Var'(VarFree(name))                       -> 
+                            (varFree_genHelper name)
+  | Set'(VarParam(name,mino), valu)           -> 
+                            (setvarParam_genHelper mino valu)
+  | Set'(VarBound(name,majo,mino), valu)      ->
+                            (setvarBound_genHelper majo mino valu)
+  | Set'(VarFree(name), valu)                 -> 
+                            (setvarFree_genHelper name valu)
+  | Seq'(listOfexprs)                         -> 
+                            (seq_genHelper listOfexprs)
+  | Or'(listOfexprs)                          -> 
+                            (or_genHelper listOfexprs)
+  | If'(test,dit,dif)                         -> 
+                            (if_genHelper test dit dif)
+  | BoxGet'(Var'(head))                       -> 
+                            (boxget_genHelper head)
+  | BoxSet'(Var'(head),valu)                  -> 
+                            (boxset_genHelper head valu)
+  | LambdaSimple'(lambdaParams, bodyOfLambda) -> 
+                            (simple_genHelper lambdaParams bodyOfLambda)
+  | Applic'(rator, rands)                     -> 
+                            (applic_genHelper rator rands)
+  | LambdaOpt'(lambdaParams, vs, bodyOfLambda)-> 
+                            (opt_genHelper lambdaParams vs bodyOfLambda)
+  | ApplicTP'(rator, rands)                   ->
+                            (applic_genHelper rator rands)
+  
+  
+  | Def'(head, valu)                          -> ???
+  | Box'(name)                                -> ???
+  
+  
+
+
+  
+;;
+
+
+
+
+
+
+
+
   let make_consts_tbl asts = raise X_not_yet_implemented (* const_table_maker asts  *);;
   let make_fvars_tbl asts = raise X_not_yet_implemented;;
   let generate consts fvars e = raise X_not_yet_implemented;;
