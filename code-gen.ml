@@ -36,24 +36,9 @@ let type_size = 1;;
 let word_size = 8;;
 let num_char_size = (type_size + word_size) ;;
 
-let rec const_table_maker listOfExprs' = 
-  let constSexprsList = ( findConsts listOfExprs' ) in
-  let dupelessConstList = ( cleanDupes constSexprsList ) in
-  let tupledList = ( tupleListMaker dupelessConstList ) in
-  let basicList = [ (Void, (0, "MAKE_VOID"));                  (Sexpr(Nil), (1, "MAKE_NIL"));
-                    (Sexpr(Bool(false)), (2, "MAKE_BOOL(0)")); (Sexpr(Bool(true)), (4, "MAKE_BOOL(1)")) ] in 
-  let offsetFixedList = offsetFixer  ( List.append basicList tupledList ) in
-  offsetFixedList
-
-and findConsts listOfExprs' = 
-match listOfExprs' with
-  | []     -> []
-  | a :: b -> ( List.append (constScanner a) (findConsts b) ) 
-
 (* TEST:  cleanDupes [1;1;1;2;3;4;5;4;3;3;6;2;2]  
 TODO: might not know how to equalise objects - use expr'_eq instead *)
-
-and cleanDupes sexprList = 
+let rec cleanDupes sexprList = 
   match sexprList with
   | []      -> []
   | a :: b  -> (
@@ -61,6 +46,47 @@ and cleanDupes sexprList =
     | true  -> ( cleanDupes b )
     | false -> ( List.append [a] (cleanDupes b) )
     )
+
+let rec const_table_maker listOfExprs = 
+  let constSexprsList   = ( findConsts listOfExprs ) in
+  let dupelessConstList = ( cleanDupes (List.rev constSexprsList) ) in
+  let extendedList      = ( extendList dupelessConstList) in
+  let tupledList        = ( tupleListMaker extendedList ) in
+  let basicList         = [ (Void, (0, "MAKE_VOID"));                  (Sexpr(Nil), (1, "MAKE_NIL"));
+                            (Sexpr(Bool(false)), (2, "MAKE_BOOL(0)")); (Sexpr(Bool(true)), (4, "MAKE_BOOL(1)")) ] in 
+  let offsetFixedList   = offsetFixer  ( List.append basicList tupledList ) in
+  offsetFixedList
+
+and findConsts listOfExpr = 
+match listOfExprs with
+  | []     -> []
+  | a :: b -> ( List.append (constScanner a) (findConsts b) ) 
+   
+   (* input: [Sexpr(Pair(Number(Int(1)), Pair(Number(Int(2)), Nil))); Sexpr(Symbol("ab"))]
+      output: [Sexpr(Number(Int(1))); Sexpr(Number(Int(2))); Sexpr(Pair(Number(Int(2)), Nil));
+             Sexpr(Pair(Number(Int(1)), Pair(Number(Int(2)), Nil))); Sexpr(String("ab")); Sexpr(Symbol("ab"))]    *)
+            
+(*TESTED WITH INPUT ABOVE - WORKS *) (* should each match case be wrapped with Sexpr'(something) ? *)
+and extendList sexprList = 
+  match sexprList with
+  | [] -> []
+  | a :: b -> (
+    match a with
+    | Sexpr(Symbol(str)) -> ( List.append [ Sexpr(String(str)); a ] (extendList b) )
+    | Sexpr(Pair(x,y))   -> ( List.append (pairExtender (Pair(x,y))) (extendList b) )
+    | Sexpr(x)           -> ( List.append [ Sexpr(x) ] (extendList b) )
+    | any                -> raise X_syntax_error
+              )
+
+(*TESTED WITH INPUT ABOVE - WORKS *)
+and pairExtender expr = 
+  match expr with
+  | Pair(Nil,Nil) -> []
+  | Pair(x, Nil)  -> ( List.append (extendList [ Sexpr(x) ] )  [ Sexpr(expr) ] )
+  | Pair(x,y)     -> ( List.append
+                     ( List.append (extendList [ Sexpr(x) ] ) (extendList [ Sexpr(y) ]) )
+                      [ Sexpr(Pair(x,y)) ] )
+  | any           -> raise X_syntax_error
 
 and tupleListMaker sexprsList = 
   match sexprsList with
@@ -76,9 +102,9 @@ and tupleListMaker sexprsList =
 
 and tupleMaker sexpr = (* TODO: which strings should be inputted with each type? *)
   match sexpr with
-  | Number(Int(vali))           -> (sexpr, (num_char_size, "MAKE_INT("^ (string_of_int vali) ^")"))
-  | Number(Float(vali))         -> (sexpr, (num_char_size, "MAKE_FLOAT("^ (string_of_float vali) ^")"))
-  | Char(vali)                  -> (sexpr, (num_char_size, "MAKE_CHAR("^  (Char.escaped vali) ^")"))
+  | Number(Int(valu))           -> (sexpr, (num_char_size, "MAKE_INT("^ (string_of_int valu) ^")"))
+  | Number(Float(valu))         -> (sexpr, (num_char_size, "MAKE_FLOAT("^ (string_of_float valu) ^")"))
+  | Char(valu)                  -> (sexpr, (num_char_size, "MAKE_CHAR("^  (Char.escaped valu) ^")"))
   | String(str)                 -> (let len = (length str) in (sexpr, ((type_size + len), "MAKE_STRING("^str^")")))
   | Symbol(str)                 -> (let len = (length str) in (sexpr, ((type_size + len), "MAKE_SYMBOL("^str^")")))
   | Pair(a,b)                   -> ()
@@ -99,7 +125,7 @@ and offsetFixer lis =
   let fixer = (fixerFunc (!byteCounter)) in
   ( List.map fixer lis )
 
-and constScanner exp = 
+and constScanner exp = (* should each match case be wrapped with Expr'(intervalValue) ? *)
   match exp with
   | Const'(sexpr)                             -> [sexpr]
   | Seq'(listOfexprs)                         -> (seqConstScanHelper listOfexprs)
@@ -327,18 +353,5 @@ and code_genScanner exp =
 
   *) 
 
-
-   
-  let rec tester lis =
-    match lis with
-    | [] -> []
-    | a :: b -> (List.append (testa a) (tester b))
-
-    and testa el =
-    match el with
-    | 1 -> Nil
-    | 2 -> Nil
-    | any -> any
-  ;;
 
   
