@@ -32,6 +32,29 @@ end;;
 
 module Code_Gen : CODE_GEN = struct
 
+
+
+
+
+
+
+
+  
+  (*       HERE WE ARE STARTING WITH THE ASSIGNMENT!!!    *)
+  (*       HERE WE ARE STARTING WITH THE ASSIGNMENT!!!    *)
+  (*       HERE WE ARE STARTING WITH THE ASSIGNMENT!!!    *)
+  (*       HERE WE ARE STARTING WITH THE ASSIGNMENT!!!    *)
+  (*       HERE WE ARE STARTING WITH THE ASSIGNMENT!!!    *)
+  (*       HERE WE ARE STARTING WITH THE ASSIGNMENT!!!    *)
+  (*       HERE WE ARE STARTING WITH THE ASSIGNMENT!!!    *)
+  (*       HERE WE ARE STARTING WITH THE ASSIGNMENT!!!    *)
+  
+
+
+
+
+
+
 let type_size = 1;;
 let word_size = 8;;
 let num_char_size = (type_size + word_size) ;;
