@@ -61,13 +61,12 @@ and findConsts listOfExpr =
 match listOfExprs with
   | []     -> []
   | a :: b -> ( List.append (constScanner a) (findConsts b) ) 
-
-   (* should each match case be wrapped with Sexpr'(something) ? *)
-   (* input: [Sexpr(Pair(Number(Int(1)), Pair(Number(Int(2)), Nil))); Sexpr(Symbol("ab"))]
-    
-     output: [Sexpr(Number(Int(1))); Sexpr(Number(Int(2))); Sexpr(Pair(Number(Int(2)), Nil));
-             Sexpr(Pair(Number(Int(1)), Pair(Number(Int(2)), Nil))); Sexpr(String("ab")); Sexpr(Symbol("ab"))]    *)
    
+   (* input: [Sexpr(Pair(Number(Int(1)), Pair(Number(Int(2)), Nil))); Sexpr(Symbol("ab"))]
+      output: [Sexpr(Number(Int(1))); Sexpr(Number(Int(2))); Sexpr(Pair(Number(Int(2)), Nil));
+             Sexpr(Pair(Number(Int(1)), Pair(Number(Int(2)), Nil))); Sexpr(String("ab")); Sexpr(Symbol("ab"))]    *)
+            
+(*TESTED WITH INPUT ABOVE - WORKS *) (* should each match case be wrapped with Sexpr'(something) ? *)
 and extendList sexprList = 
   match sexprList with
   | [] -> []
@@ -79,6 +78,7 @@ and extendList sexprList =
     | any                -> raise X_syntax_error
               )
 
+(*TESTED WITH INPUT ABOVE - WORKS *)
 and pairExtender expr = 
   match expr with
   | Pair(Nil,Nil) -> []
@@ -102,9 +102,9 @@ and tupleListMaker sexprsList =
 
 and tupleMaker sexpr = (* TODO: which strings should be inputted with each type? *)
   match sexpr with
-  | Number(Int(vali))           -> (sexpr, (num_char_size, "MAKE_INT("^ (string_of_int vali) ^")"))
-  | Number(Float(vali))         -> (sexpr, (num_char_size, "MAKE_FLOAT("^ (string_of_float vali) ^")"))
-  | Char(vali)                  -> (sexpr, (num_char_size, "MAKE_CHAR("^  (Char.escaped vali) ^")"))
+  | Number(Int(valu))           -> (sexpr, (num_char_size, "MAKE_INT("^ (string_of_int valu) ^")"))
+  | Number(Float(valu))         -> (sexpr, (num_char_size, "MAKE_FLOAT("^ (string_of_float valu) ^")"))
+  | Char(valu)                  -> (sexpr, (num_char_size, "MAKE_CHAR("^  (Char.escaped valu) ^")"))
   | String(str)                 -> (let len = (length str) in (sexpr, ((type_size + len), "MAKE_STRING("^str^")")))
   | Symbol(str)                 -> (let len = (length str) in (sexpr, ((type_size + len), "MAKE_SYMBOL("^str^")")))
   | Pair(a,b)                   -> ()
@@ -125,7 +125,7 @@ and offsetFixer lis =
   let fixer = (fixerFunc (!byteCounter)) in
   ( List.map fixer lis )
 
-and constScanner exp = (* should each match case be wrapped with Expr'(something) ? *)
+and constScanner exp = (* should each match case be wrapped with Expr'(intervalValue) ? *)
   match exp with
   | Const'(sexpr)                             -> [sexpr]
   | Seq'(listOfexprs)                         -> (seqConstScanHelper listOfexprs)
