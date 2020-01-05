@@ -36,8 +36,8 @@ let type_size = 1;;
 let word_size = 8;;
 let num_char_size = (type_size + word_size) ;;
 
-let rec const_table_maker listOfExprs' = 
-  let constSexprsList = ( findConsts listOfExprs' ) in
+let rec const_table_maker listOfExprs = 
+  let constSexprsList = ( findConsts listOfExprs ) in
   let dupelessConstList = ( cleanDupes constSexprsList ) in
   let tupledList = ( tupleListMaker dupelessConstList ) in
   let basicList = [ (Void, (0, "MAKE_VOID"));                  (Sexpr(Nil), (1, "MAKE_NIL"));
@@ -45,8 +45,8 @@ let rec const_table_maker listOfExprs' =
   let offsetFixedList = offsetFixer  ( List.append basicList tupledList ) in
   offsetFixedList
 
-and findConsts listOfExprs' = 
-match listOfExprs' with
+and findConsts listOfExpr = 
+match listOfExprs with
   | []     -> []
   | a :: b -> ( List.append (constScanner a) (findConsts b) ) 
 
@@ -156,18 +156,5 @@ and seqConstScanHelper listOfExprs =
 
   *) 
 
-
-   
-  let rec tester lis =
-    match lis with
-    | [] -> []
-    | a :: b -> (List.append (testa a) (tester b))
-
-    and testa el =
-    match el with
-    | 1 -> Nil
-    | 2 -> Nil
-    | any -> any
-  ;;
 
   
