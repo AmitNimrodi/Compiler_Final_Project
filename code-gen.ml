@@ -320,47 +320,52 @@ and varScanner vari =
   (*       HERE WE ARE FINISHED WITH THE FREE_TABLE!!!    *)
   (*       HERE WE ARE FINISHED WITH THE FREE_TABLE!!!    *)
   
+let labelCounter = ref 0 ;;    
+let labelCounterInc() = labelCounter := !labelCounter + 1 ;;
+let labelCounterGet() = !labelCounter;;
+
+
 
 let rec code_gen_maker consts fvars e =
-  let somthing = (code_genScanner consts fvars e) in
+  let somthing = (code_genScanner consts fvars e 0 ) in
   "hello: Yoav Is King"
 
 
 
-and code_genScanner consts fvars exp = 
+and code_genScanner consts fvars exp envLayer = 
   match exp with
   | Const'(sexpr)                             -> 
-                            (const_genHelper sexpr)
+            (const_genHelper sexpr envLayer)
   | Var'(VarParam(name,mino))                 -> 
-                            (varParam_genHelper mino)
+            (varParam_genHelper mino envLayer)
   | Var'(VarBound(name,majo,mino))            -> 
-                            (varBound_genHelper majo mino)
+            (varBound_genHelper majo mino envLayer)
   | Var'(VarFree(name))                       -> 
-                            (varFree_genHelper name)
+            (varFree_genHelper name envLayer)
   | Set'(Var'(VarParam(name,mino)), valu)     -> 
-                            (setvarParam_genHelper mino valu)
+            (setvarParam_genHelper mino valu envLayer)
   | Set'(Var'(VarBound(name,majo,mino)), valu)->
-                            (setvarBound_genHelper majo mino valu)
+            (setvarBound_genHelper majo mino valu envLayer)
   | Set'(Var'(VarFree(name)), valu)           -> 
-                            (setvarFree_genHelper name valu)
+            (setvarFree_genHelper name valu envLayer)
   | Seq'(listOfexprs)                         -> 
-                            (seq_genHelper listOfexprs)
+            (seq_genHelper listOfexprs envLayer)
   | Or'(listOfexprs)                          -> 
-                            (or_genHelper listOfexprs)
+            (or_genHelper listOfexprs envLayer)
   | If'(test,dit,dif)                         -> 
-                            (if_genHelper test dit dif)
+            (if_genHelper consts fvars test dit dif envLayer)
   | BoxGet'(head)                             -> 
-                            (boxget_genHelper head)
+            (boxget_genHelper head envLayer)
   | BoxSet'(head,valu)                        -> 
-                            (boxset_genHelper head valu)
+            (boxset_genHelper head valu envLayer)
   | LambdaSimple'(lambdaParams, bodyOfLambda) -> 
-                            (simple_genHelper lambdaParams bodyOfLambda)
+            (simple_genHelper consts fvars lambdaParams bodyOfLambda envLayer)
   | Applic'(rator, rands)                     -> 
-                            (applic_genHelper rator rands)
+            (applic_genHelper rator rands envLayer)
   | LambdaOpt'(lambdaParams, vs, bodyOfLambda)-> 
-                            (opt_genHelper lambdaParams vs bodyOfLambda)
+            (opt_genHelper lambdaParams vs bodyOfLambda envLayer)
   | ApplicTP'(rator, rands)                   ->
-                            (applicTP_genHelper rator rands)
+            (applicTP_genHelper rator rands envLayer)
   
   
   | Def'(head, valu)                          -> raise X_syntax_error
@@ -369,69 +374,117 @@ and code_genScanner consts fvars exp =
   
 
 
-and const_genHelper sexpr =
+and const_genHelper sexpr envLayer =
   raise X_syntax_error
 
 
-and varParam_genHelper mino =
+and varParam_genHelper mino envLayer =
   raise X_syntax_error
 
 
-and varBound_genHelper majo mino =
+and varBound_genHelper majo mino envLayer =
   raise X_syntax_error
 
 
-and varFree_genHelper name =
+and varFree_genHelper name envLayer =
   raise X_syntax_error
 
 
-and setvarParam_genHelper mino valu =
+and setvarParam_genHelper mino valu envLayer =
   raise X_syntax_error
 
 
-and setvarBound_genHelper majo mino valu =
+and setvarBound_genHelper majo mino valu envLayer =
   raise X_syntax_error
 
 
-and setvarFree_genHelper name valu =
+and setvarFree_genHelper name valu envLayer =
   raise X_syntax_error
 
 
-and seq_genHelper listOfexprs =
+and seq_genHelper listOfexprs envLayer =
   raise X_syntax_error
 
 
-and or_genHelper listOfexprs =
+and or_genHelper listOfexprs envLayer =
   raise X_syntax_error
 
 
-and if_genHelper test dit dif =
+
+(* 
+    First, we get 2 uniqe labels, then we concat assembly string:
+    eval test
+    cmp to false to see if jmp to else_label
+    eval dit
+    jmp to exit_label
+    else_label
+    eval dif
+    exit_label
+*)
+and if_genHelper consts fvars test dit dif envLayer =
+  labelCounterInc();
+  let ifLelse = labelCounterGet() in
+  labelCounterInc();
+  let ifLexit = labelCounterGet() in
+  (
+  (code_genScanner consts fvars test envLayer)  ^ " \n" ^
+  "   cmp rax, SOB_FALSE"                       ^ " \n" ^
+  "   je  Lelse" ^ (string_of_int ifLelse)      ^ " \n" ^
+  (code_genScanner consts fvars dit envLayer)   ^ " \n" ^
+  "   jmp  Lexit" ^ (string_of_int ifLexit)     ^ " \n" ^
+  "Lelse" ^ (string_of_int ifLelse) ^ ":"       ^ " \n" ^
+  (code_genScanner consts fvars dif envLayer)   ^ " \n" ^
+  "Lexit" ^ (string_of_int ifLexit) ^ ":"       ^ " \n" 
+  )
+  
+
+and boxget_genHelper head envLayer =
   raise X_syntax_error
 
 
-and boxget_genHelper head =
+and boxset_genHelper head valu envLayer =
   raise X_syntax_error
 
 
-and boxset_genHelper head valu =
-  raise X_syntax_error
 
+(* 
+    First, we get 2 uniqe labels, then we concat assembly string:
+    allocate ExtEnv using malloc
+    copy pointers of minor vectors from Env to ExtEnv
+    allocate new vector for ExtEnv(0) using malloc
+    copy parameters from stack
+    allocate closure object, adress in rax
+    set rax.env = ExtEnv
+    set rax.code = Lcode
+    jmp Lcont
+    Lcode: save rbp, eval body, return.
+    Lcont: rest of code
+*)
+and simple_genHelper consts fvars lambdaParams bodyOfLambda envLayer =
+  labelCounterInc();
+  let Lcode = labelCounterGet() in
+  labelCounterInc();
+  let Lcont = labelCounterGet() in
+  (
 
-and simple_genHelper lambdaParams bodyOfLambda =
-  raise X_syntax_error
+  "   mov r10, " ^ (string_of_int(envLayer+1))  ^ " \n" ^
+  "   imul r10, 8"                              ^ " \n" ^
+  "   MALLOC r10, r10"                          ^ " \n" ^
+  
+  
+  )
 
-
-and applic_genHelper rator rands =
+and applic_genHelper rator rands envLayer =
   raise X_syntax_error
 
 
   
-and opt_genHelper lambdaParams vs bodyOfLambda =
+and opt_genHelper lambdaParams vs bodyOfLambda envLayer =
   raise X_syntax_error
 
 
   
-and applicTP_genHelper rator rands =
+and applicTP_genHelper rator rands envLayer =
   raise X_syntax_error
 
 
