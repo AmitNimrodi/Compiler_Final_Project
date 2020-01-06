@@ -55,9 +55,15 @@ module Code_Gen : CODE_GEN = struct
 
 
 
-let type_size = 1;;
-let word_size = 8;;
+let type_size = 1 ;;
+let word_size = 8 ;;
 let num_char_size = (type_size + word_size) ;;
+let byteCounter = ref 6 ;;    (* we start with 6 because of the basics table. *)
+let byteCounterInc x = byteCounter := !byteCounter + x ;;
+let getAndInc x =
+  let valu = !byteCounter in
+  (byteCounterInc x); 
+  valu;;
 
 (* TEST:  cleanDupes [1;1;1;2;3;4;5;4;3;3;6;2;2]  
 TODO: might not know how to equalise objects - use expr'_eq instead *)
@@ -76,16 +82,21 @@ and cleanDupesinner sexprList =
 ;;
 
 let rec const_table_maker listOfExprs = 
-  let constSexprsList   = ( findConsts listOfExprs ) in
-  let dupelessConstList = ( cleanDupes constSexprsList ) in
-  let extendedList      = ( extendList dupelessConstList) in
-  let tupledList        = ( tupleListMaker extendedList ) in
-  let basicList         = [ (Void, (0, "MAKE_VOID"));                  (Sexpr(Nil), (1, "MAKE_NIL"));
+  
+  let constSexprsList      = ( findConsts listOfExprs ) in
+  let dupelessConstList    = ( cleanDupes constSexprsList ) in
+  let extendedList         = ( extendList dupelessConstList) in
+  let dupelessExtendedList = ( cleanDupes extendedList ) in
+  let basicList            = [ (Void, (0, "MAKE_VOID"));                  (Sexpr(Nil), (1, "MAKE_NIL"));
                             (Sexpr(Bool(false)), (2, "MAKE_BOOL(0)")); (Sexpr(Bool(true)), (4, "MAKE_BOOL(1)")) ] in 
-  let offsetFixedList   = offsetFixer  ( List.append basicList tupledList ) in
+  let tupledList           = ( tupleListMaker dupelessExtendedList basicList ) in
+  (*
+  let offsetFixedList      = offsetFixer  ( List.append basicList tupledList ) in
   offsetFixedList
+  *)
+  tupledList
 
-and findConsts listOfExpr = 
+and findConsts listOfExprs = 
 match listOfExprs with
   | []     -> []
   | a :: b -> ( List.append (constScanner a) (findConsts b) ) 
@@ -116,42 +127,70 @@ and pairExtender expr =
                       [ Sexpr(Pair(x,y)) ] )
   | any           -> raise X_syntax_error
 
-and tupleListMaker sexprsList = 
+and tupleListMaker sexprsList tuplesList = 
   match sexprsList with
-  | []            -> []
-  | a :: b        -> (
+  | []                    -> []
+  | a :: b                -> (
     match a with
-    | Void        -> (tupleListMaker b)
-    | Nil         -> (tupleListMaker b)
-    | Bool(true)  -> (tupleListMaker b)
-    | Bool(false) -> (tupleListMaker b)
-    | any         -> ( List.append (tupleMaker a) (tupleListMaker b) )
-                     )
+    | Void                -> (tupleListMaker b tuplesList)
+    | Sexpr(Nil)          -> (tupleListMaker b tuplesList)
+    | Sexpr(Bool(true))   -> (tupleListMaker b tuplesList)
+    | Sexpr(Bool(false))  -> (tupleListMaker b tuplesList)
+    | any                 -> (let lis = (List.append tuplesList [(tupleMaker a tuplesList)]) in
+                             ( List.append lis (tupleListMaker b lis) )
+                             )
+                            )
 
-and tupleMaker sexpr = (* TODO: which strings should be inputted with each type? *)
+and tupleMaker sexpr tuplesList = (* TODO: which strings should be inputted with each type? *)
   match sexpr with
-  | Number(Int(valu))           -> (sexpr, (num_char_size, "MAKE_INT("^ (string_of_int valu) ^")"))
-  | Number(Float(valu))         -> (sexpr, (num_char_size, "MAKE_FLOAT("^ (string_of_float valu) ^")"))
-  | Char(valu)                  -> (sexpr, (num_char_size, "MAKE_CHAR("^  (Char.escaped valu) ^")"))
-  | String(str)                 -> (let len = (length str) in (sexpr, ((type_size + len), "MAKE_STRING("^str^")")))
-  | Symbol(str)                 -> (let len = (length str) in (sexpr, ((type_size + len), "MAKE_SYMBOL("^str^")")))
-  | Pair(a,b)                   -> ()
-  | TaggedSexpr 
-  | TagRef 
-  | any                         -> raise X_syntax_error
+  | Sexpr(Number(Int(valu)))           -> let offset = getAndInc(num_char_size) in 
+                                          (sexpr, (offset, "MAKE_INT("^ (string_of_int valu) ^")"))
+  | Sexpr(Number(Float(valu)))         -> let offset = getAndInc(num_char_size) in 
+                                          (sexpr, (offset, "MAKE_FLOAT("^ (string_of_float valu) ^")"))
+  | Sexpr(Char(valu))                  -> let offset = getAndInc(num_char_size) in 
+                                          (sexpr, (offset, "MAKE_CHAR("^  (Char.escaped valu) ^")"))
+  | Sexpr(String(str))                 -> let len = (String.length str) in
+                                          let offset = getAndInc((type_size + len + num_char_size)) in
+                                          (sexpr, (offset, "MAKE_STRING("^ str ^")"))
+  | Sexpr(Symbol(str))                 -> (symbolTupleMaker sexpr tuplesList)
+  | Sexpr(Pair(a,b))                   -> raise X_syntax_error
+  | Sexpr(TaggedSexpr(a,b))            -> raise X_syntax_error
+  | Sexpr(TagRef(a))                 -> raise X_syntax_error
+  | any                                -> raise X_syntax_error
 
-(*TEST:  offsetFixer [("a",(3,"a")); ("b",(4,"f")); ("c",(8,"f"))];;   *)
+
+  (* TEST :  symbolTupleMaker (Symbol("aaa")) [(Sexpr(String("aa")), (6,"something"));  (Sexpr(String("aaa")), (17, "something"))];;
+     EXPECTED OUTPUT: (Symbol "aaa", (23, "MAKE_SYMBOL(17)")) *)
+and symbolTupleMaker sexpr tuplesList = 
+  let str = ( match sexpr with
+    | Sexpr(Symbol(stri)) -> stri
+    | any -> raise X_syntax_error ) in
+  let valu = getAndInc(type_size + num_char_size) in
+  let pred sexprTuple = 
+  ( match sexprTuple with
+    | (Sexpr(String(strin)), (off, representation)) -> if (strin=str) then true else false
+    | any -> false
+  ) in
+  let offsetPointer =
+  ( match (List.find pred tuplesList) with
+    | (Sexpr(String(strin)), (off, representation)) -> off
+    |  any -> raise X_syntax_error
+  ) in
+  (sexpr, (valu, "MAKE_SYMBOL("^(string_of_int offsetPointer)^")"))
+
+(*TEST:  offsetFixer [("a",(3,"a")); ("b",(4,"f")); ("c",(3,"f"))];;   *)
+(*
 and offsetFixer lis = 
-  let byteCounter = ref 6 in (* we start with 6 because of the basics table. *)
   let fixerFunc countVal (sexpr, (oldVal, string))  =
     let countVal = !byteCounter in 
-    let byteCounterInc() = byteCounter := !byteCounter + oldVal in
+    
     begin 
     byteCounterInc() ;
     (sexpr, (countVal, string))
     end in
   let fixer = (fixerFunc (!byteCounter)) in
   ( List.map fixer lis )
+*)
 
 and constScanner exp = (* should each match case be wrapped with Expr'(intervalValue) ? *)
   match exp with
@@ -398,6 +437,7 @@ and applicTP_genHelper rator rands =
 
 
   
+    
 ;;
 
 
@@ -418,8 +458,7 @@ and applicTP_genHelper rator rands =
   open Tag_Parser;;
   open Semantics;;
 
- 
- 
+
   (* TEST AREA
   
    make_consts_tbl
