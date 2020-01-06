@@ -483,3 +483,131 @@ let tag_parse_expression sexpr = p_expr sexpr;;
 let tag_parse_expressions sexpr = List.map tag_parse_expression sexpr;;
 
 end;; (* struct Tag_Parser *)
+
+
+(*     here are the 4 tests we couldn't pass with same error 
+
+
+
+
+
+
+
+
+tag_parse_expressions
+
+[Pair (String "should not", Pair (String "be", Pair (String "list", Nil)))]
+
+;;
+
+
+[Seq
+  [Const (Sexpr (String "should not")); Const (Sexpr (String "be"));
+   Const (Sexpr (String "list"))]]
+
+
+[Applic (Const (Sexpr (String "should not")),[Const (Sexpr (String "be"));
+         Const (Sexpr (String "list"))])]
+
+
+
+
+tag_parse_expressions
+[Pair (Symbol "letrec",
+    Pair(Pair(Pair (Symbol "x",
+        Pair(Pair (TaggedSexpr ("y",
+           Pair (Symbol "quote", Pair (Nil, Nil))), Nil),Nil)),
+        Pair(Pair (Symbol "y",Pair(Pair (Symbol "begin",
+          Pair (Number (Int 1),Pair (Number (Int 2),
+          Pair (Number (Int 3), Nil)))),Nil)),Nil)),
+        Pair (Pair (Symbol "set", Pair (Symbol "x",
+                   Pair (Symbol "y", Nil))), Nil)))]
+
+;;
+
+
+
+[Applic
+  (LambdaSimple (["x"; "y"],
+    Seq
+     [Set (Var "x", Seq [Const (Sexpr (TaggedSexpr ("y", Nil)))]);
+      Set (Var "y",
+       Seq
+        [Const (Sexpr (Number (Int 1))); Const (Sexpr (Number (Int 2)));
+         Const (Sexpr (Number (Int 3)))]);
+      Applic (Var "set", [Var "x"; Var "y"])]),
+  [Const (Sexpr (Symbol "whatever")); Const (Sexpr (Symbol "whatever"))])]
+
+
+[Applic
+  (LambdaSimple (["x"; "y"],
+    Seq
+     [Set (Var "x", Applic (Const (Sexpr (TaggedSexpr ("y", Nil))), []));
+      Set (Var "y",
+       Seq
+        [Const (Sexpr (Number (Int 1))); Const (Sexpr (Number (Int 2)));
+         Const (Sexpr (Number (Int 3)))]);
+      Applic (Var "set", [Var "x"; Var "y"])]),
+  [Const (Sexpr (Symbol "whatever")); Const (Sexpr (Symbol "whatever"))])]
+
+
+
+tag_parse_expressions
+[Pair (Symbol "letrec",
+      Pair(Pair(Pair (Symbol "x",
+            Pair(Pair (TaggedSexpr ("y",
+             Pair (Symbol "quote", Pair (Nil, Nil))), Nil),
+             Nil)),Nil),Pair (Symbol "x", Nil)))];;
+
+
+[Applic
+  (LambdaSimple (["x"],
+    Seq
+     [Set (Var "x", 
+        Seq [Const (Sexpr (TaggedSexpr ("y", Nil)))]); Var "x"]),
+  [Const (Sexpr (Symbol "whatever"))])]
+
+
+
+[Applic
+  (LambdaSimple (["x"],
+    Seq
+      [Set (Var "x", 
+        Applic (Const (Sexpr (TaggedSexpr ("y", Nil))), [])); Var "x"]),
+  [Const (Sexpr (Symbol "whatever"))])]
+
+
+
+tag_parse_expressions [TaggedSexpr ("foo",
+  Pair (Number (Int 1), Pair (Number (Int 2), Pair (Number (Int 3), Nil))));
+  Pair (Number (Int 1),Pair (TaggedSexpr ("foo", Number (Int 2)),
+     Pair (TagRef "foo", Nil)))] ;;
+
+
+
+     [Const
+     (Sexpr
+       (TaggedSexpr ("foo",
+         Pair (Number (Int 1),
+          Pair (Number (Int 2), Pair (Number (Int 3), Nil))))));
+    Seq
+     [Const (Sexpr (Number (Int 1)));
+      Const (Sexpr (TaggedSexpr ("foo", Number (Int 2))));
+      Const (Sexpr (TagRef "foo"))]]
+
+
+     
+     
+     [Const(Sexpr(
+       TaggedSexpr ("foo",
+       Pair (Number (Int 1),
+       Pair (Number (Int 2), Pair (Number (Int 3), Nil))))));
+    
+    Applic 
+      (Const (Sexpr (Number (Int 1))),
+      [Const (Sexpr (TaggedSexpr ("foo", Number (Int 2))));
+      Const (Sexpr (TagRef "foo"))])]
+
+
+
+      *)
