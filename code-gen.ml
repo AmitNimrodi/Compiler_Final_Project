@@ -365,7 +365,7 @@ and code_genScanner consts fvars exp =
   
   | Def'(head, valu)                          -> raise X_syntax_error
   | Box'(name)                                -> raise X_syntax_error
-  
+  | any                                       -> raise X_syntax_error
   
 
 
