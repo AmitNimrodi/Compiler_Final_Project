@@ -106,12 +106,12 @@ let rec const_table_maker listOfExprs =
   let dupelessConstList    = ( cleanDupes fixedTagsList ) in
   let extendedList         = ( extendList dupelessConstList) in
   let dupelessExtendedList = ( cleanDupes extendedList ) in
-  (*let basicList            = [ (Void, (0, "MAKE_VOID"));                  (Sexpr(Nil), (1, "MAKE_NIL"));
+  let basicList            = [ (Void, (0, "MAKE_VOID"));                  (Sexpr(Nil), (1, "MAKE_NIL"));
                             (Sexpr(Bool(false)), (2, "MAKE_BOOL(0)")); (Sexpr(Bool(true)), (4, "MAKE_BOOL(1)")) ] in 
                             
   let tupledList           = ( tupleListMaker dupelessExtendedList basicList ) in
-  *)
-  let tupledList           = ( tupleListMaker dupelessExtendedList [] ) in
+ 
+  (* let tupledList           = ( tupleListMaker dupelessExtendedList [] ) in *)
   tupledList
 
 (*TEST:
@@ -393,8 +393,9 @@ let labelCounterGet() = !labelCounter;;
 
 
 let rec code_gen_maker consts fvars e =
-  (* let somthing = (code_genScanner consts fvars e 0 ) in *)
-  "hello: Yoav Is King"
+  let somthing = (code_genScanner consts fvars e 0 ) in
+  somthing
+  (* "hello: Yoav Is King" *)
 
 
 
@@ -441,7 +442,7 @@ and code_genScanner consts fvars exp envLayer =
 
 
 and const_genHelper sexpr envLayer =
-  raise X_syntax_error
+  "#t"
 
 
 and varParam_genHelper mino envLayer =
@@ -698,18 +699,40 @@ and applicTP_genHelper rator rands envLayer =
   open Reader;;
   open Tag_Parser;;
   open Semantics;;
+  open Code_Gen;;
 
 
   (* TEST AREA
   
-   make_consts_tbl
+   let yoav1 = 
+    make_consts_tbl
+    [(run_semantics
+     (tag_parse_expression
+      (read_sexpr
+        "(if 1 2 3)"
+      )
+     )
+    )];;
+
+    let yoav2 = 
+    make_fvars_tbl
+    [(run_semantics
+     (tag_parse_expression
+      (read_sexpr
+        "(if 1 2 3)"
+      )
+     )
+    )];;
+    let yoav3 = 
     (run_semantics
      (tag_parse_expression
       (read_sexpr
-        "((define x 2) (define y 3))"
+        "(if 1 2 3)"
       )
      )
     );;
+
+    generate yoav1 yoav2 yoav3;;
 
   run_semantics (
     Applic (Def (Var "x", Const (Sexpr (Number (Int 2)))),
