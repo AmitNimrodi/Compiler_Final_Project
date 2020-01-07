@@ -327,7 +327,7 @@ let labelCounterGet() = !labelCounter;;
 
 
 let rec code_gen_maker consts fvars e =
-  let somthing = (code_genScanner consts fvars e 0 ) in
+  (* let somthing = (code_genScanner consts fvars e 0 ) in *)
   "hello: Yoav Is King"
 
 
@@ -359,7 +359,7 @@ and code_genScanner consts fvars exp envLayer =
   | BoxSet'(head,valu)                        -> 
             (boxset_genHelper head valu envLayer)
   | LambdaSimple'(lambdaParams, bodyOfLambda) -> 
-            (simple_genHelper consts fvars lambdaParams bodyOfLambda envLayer)
+            (simple_genHelper consts fvars bodyOfLambda envLayer)
   | Applic'(rator, rands)                     -> 
             (applic_genHelper rator rands envLayer)
   | LambdaOpt'(lambdaParams, vs, bodyOfLambda)-> 
@@ -412,7 +412,7 @@ and or_genHelper listOfexprs envLayer =
 
 
 (* 
-    First, we get 2 uniqe labels, then we concat assembly string:
+    First, we get uniqe label, then we concat assembly string:
     eval test
     cmp to false to see if jmp to else_label
     eval dit
@@ -423,18 +423,16 @@ and or_genHelper listOfexprs envLayer =
 *)
 and if_genHelper consts fvars test dit dif envLayer =
   labelCounterInc();
-  let ifLelse = labelCounterGet() in
-  labelCounterInc();
-  let ifLexit = labelCounterGet() in
+  let ifLable = labelCounterGet() in
   (
   (code_genScanner consts fvars test envLayer)  ^ " \n" ^
   "   cmp rax, SOB_FALSE"                       ^ " \n" ^
-  "   je  Lelse" ^ (string_of_int ifLelse)      ^ " \n" ^
+  "   je  Lelse" ^ (string_of_int ifLable)      ^ " \n" ^
   (code_genScanner consts fvars dit envLayer)   ^ " \n" ^
-  "   jmp  Lexit" ^ (string_of_int ifLexit)     ^ " \n" ^
-  "Lelse" ^ (string_of_int ifLelse) ^ ":"       ^ " \n" ^
+  "   jmp  Lexit" ^ (string_of_int ifLable)     ^ " \n" ^
+  "Lelse" ^ (string_of_int ifLable) ^ ":"       ^ " \n" ^
   (code_genScanner consts fvars dif envLayer)   ^ " \n" ^
-  "Lexit" ^ (string_of_int ifLexit) ^ ":"       ^ " \n" 
+  "Lexit" ^ (string_of_int ifLable) ^ ":"       ^ " \n" 
   )
   
 
@@ -448,7 +446,7 @@ and boxset_genHelper head valu envLayer =
 
 
 (* 
-    First, we get 2 uniqe labels, then we concat assembly string:
+    First, we get uniqe label, then we concat assembly string:
     allocate ExtEnv using malloc
     copy pointers of minor vectors from Env to ExtEnv
     allocate new vector for ExtEnv(0) using malloc
@@ -460,19 +458,108 @@ and boxset_genHelper head valu envLayer =
     Lcode: save rbp, eval body, return.
     Lcont: rest of code
 *)
-and simple_genHelper consts fvars lambdaParams bodyOfLambda envLayer =
+and simple_genHelper consts fvars bodyOfLambda envLayer =
   labelCounterInc();
-  let Lcode = labelCounterGet() in
-  labelCounterInc();
-  let Lcont = labelCounterGet() in
+  let sLabel = labelCounterGet() in
   (
 
   "   mov r10, " ^ (string_of_int(envLayer+1))  ^ " \n" ^
   "   imul r10, 8"                              ^ " \n" ^
-  "   MALLOC r10, r10"                          ^ " \n" ^
+  "   MALLOC r10, r10"                          ^ " \n" ^(* ExtEnv malloced  *)
   
   
-  )
+  (* 
+    for( r11=i=0 , r12=j=1 ; r11 < r13=envLayer ; r11++ , r12++)
+    ( ExtEnv[r12=j] = Env[r11=i])
+  *)
+  
+  "   mov r11, 0"                               ^ " \n" ^(* i=0  *)
+  "   mov r12, 1"                               ^ " \n" ^(* j=1  *)
+  "   mov r13, " ^ (string_of_int envLayer)     ^ " \n" ^(* r13=envLayer  *)
+
+  "ExtEnvLoop"   ^ (string_of_int sLabel) ^ ":" ^ " \n" ^
+  "   cmp r11, r13"                             ^ " \n" ^(* i=j?  *)
+  "   je ExtEnvEnd" ^ (string_of_int sLabel)    ^ " \n" ^
+  
+  
+  "   mov r14, qword[rbp + 8*2]"                ^ " \n" ^(* Env in stack  *)
+  "   mov r8, r10"                              ^ " \n" ^(* ExtEnv malloced  *)
+  
+  "   mov r15, r11"                             ^ " \n" ^(* r15=i  *)
+  "   imul r15, 8"                              ^ " \n" ^(* r15=8*i  *)
+  "   add r14, r15"                             ^ " \n" ^(* r14=Env[i]  *)
+  
+  "   mov r15, r12"                             ^ " \n" ^(* r15=j  *)
+  "   imul r15, 8"                              ^ " \n" ^(* r15=8*j  *)
+  "   add r8, r15"                              ^ " \n" ^(* r8=ExtEnv[j]  *)
+  
+
+  "   mov r15, qword[r14]"                      ^ " \n" ^(* r15=[Env[i]]  *)
+  "   mov qword[r8], r15"                       ^ " \n" ^(* [ExtEnv[j]]=r15  *)
+
+
+  "   add r11, 1"                               ^ " \n" ^(* i++  *)
+  "   add r12, 1"                               ^ " \n" ^(* j++  *)
+  "   jmp ExtEnvLoop" ^ (string_of_int sLabel)  ^ " \n" ^
+  "ExtEnvEnd"    ^ (string_of_int sLabel) ^ ":" ^ " \n" ^
+
+  "   mov r11, 0"                               ^ " \n" ^(* i=0  *)
+  "   mov r13, qword[rbp + 8*3]"                ^ " \n" ^(* r13=paramcount  *)
+  "   mov r9, qword[rbp + 8*3]"                 ^ " \n" ^
+  "   imul r9, 8"                               ^ " \n" ^
+  "   MALLOC r9, r9"                            ^ " \n" ^(* param vector malloced  *)
+  "   mov qword[r10], r9"                       ^ " \n" ^(* [ExtEnv[0]]=r9  *)
+  
+  (* 
+    for( r11=i=0 ; r11 < r13=paramcount ; r11++ )
+    ( ExtEnv[r12=j] = Env[r11=i])
+  *)
+  
+  "ParamEnvLoop" ^ (string_of_int sLabel) ^ ":" ^ " \n" ^
+  "   cmp r11, r13"                             ^ " \n" ^(* i=paramcount?  *)
+  "   je ParamEnvEnd" ^ (string_of_int sLabel)  ^ " \n" ^
+  
+  "   mov r15, r11"                             ^ " \n" ^(* r15=i  *)
+  "   add r15, 4"                               ^ " \n" ^(* r15=i+4  *)
+  "   imul r15, 8"                              ^ " \n" ^(* r15=8*(i+4)  *)
+  "   add r15, rbp"                             ^ " \n" ^(* r15=8*(i+4)+rbp=param[i]  *)
+  
+  "   mov r14, r11"                             ^ " \n" ^(* r14=i  *)
+  "   imul r14, 8"                              ^ " \n" ^(* r14=8*i  *)
+  "   add r14, r9"                              ^ " \n" ^(* r15=8*i+param vector  *)
+  
+  "   mov qword[r14], r15"                      ^ " \n" ^(* [vector[i]]=r15  *)
+
+
+  "   add r11, 1"                               ^ " \n" ^(* i++  *)
+  "   jmp ParamEnvLoop" ^(string_of_int sLabel) ^ " \n" ^
+  "ParamEnvEnd"  ^ (string_of_int sLabel) ^ ":" ^ " \n" ^
+  
+  (* 
+    allocate closure object, adress in rax.
+    set closure env and code(second and third parameters to make_closure)
+    jump to continue.
+  *)
+
+  "   mov rax, r10"                             ^ " \n" ^(* rax=ExtEnv  *)
+  "   MAKE_CLOSURE( rax, r10,Lcode" 
+                 ^(string_of_int sLabel) ^ ")"  ^ " \n" ^(* rax=closure  *)
+  "   jmp Lcont" ^(string_of_int sLabel)        ^ " \n" ^
+
+  
+  "Lcode"        ^(string_of_int sLabel) ^ ":"  ^ " \n" ^
+  "   push rbp"                                 ^ " \n" ^(* save pointer  *)
+  "   mov rbp, rsp"                             ^ " \n" ^(* point to new closure  *)
+  (code_genScanner consts fvars bodyOfLambda (envLayer+1))
+                                                ^ " \n" ^
+  "   leave"                                    ^ " \n" ^(* rax=ExtEnv  *)
+  "   ret"                                      ^ " \n" ^(* rax=ExtEnv  *)
+  
+  "Lcont"        ^(string_of_int sLabel) ^ ":"  ^ " \n" 
+
+  
+  ) 
+
 
 and applic_genHelper rator rands envLayer =
   raise X_syntax_error
