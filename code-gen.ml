@@ -361,7 +361,7 @@ and code_genScanner consts fvars exp envLayer =
   | LambdaSimple'(lambdaParams, bodyOfLambda) -> 
             (simple_genHelper consts fvars bodyOfLambda envLayer)
   | Applic'(rator, rands)                     -> 
-            (applic_genHelper rator rands envLayer)
+            (applic_genHelper consts fvars rator rands envLayer)
   | LambdaOpt'(lambdaParams, vs, bodyOfLambda)-> 
             (opt_genHelper lambdaParams vs bodyOfLambda envLayer)
   | ApplicTP'(rator, rands)                   ->
@@ -464,7 +464,7 @@ and simple_genHelper consts fvars bodyOfLambda envLayer =
   (
 
   "   mov r10, " ^ (string_of_int(envLayer+1))  ^ " \n" ^
-  "   imul r10, 8"                              ^ " \n" ^
+  "   shl r10, 3"                               ^ " \n" ^
   "   MALLOC r10, r10"                          ^ " \n" ^(* ExtEnv malloced  *)
   
   
@@ -486,11 +486,11 @@ and simple_genHelper consts fvars bodyOfLambda envLayer =
   "   mov r8, r10"                              ^ " \n" ^(* ExtEnv malloced  *)
   
   "   mov r15, r11"                             ^ " \n" ^(* r15=i  *)
-  "   imul r15, 8"                              ^ " \n" ^(* r15=8*i  *)
+  "   shl r15, 3"                               ^ " \n" ^(* r15=8*i  *)
   "   add r14, r15"                             ^ " \n" ^(* r14=Env[i]  *)
   
   "   mov r15, r12"                             ^ " \n" ^(* r15=j  *)
-  "   imul r15, 8"                              ^ " \n" ^(* r15=8*j  *)
+  "   shl r15, 3"                               ^ " \n" ^(* r15=8*j  *)
   "   add r8, r15"                              ^ " \n" ^(* r8=ExtEnv[j]  *)
   
 
@@ -506,7 +506,7 @@ and simple_genHelper consts fvars bodyOfLambda envLayer =
   "   mov r11, 0"                               ^ " \n" ^(* i=0  *)
   "   mov r13, qword[rbp + 8*3]"                ^ " \n" ^(* r13=paramcount  *)
   "   mov r9, qword[rbp + 8*3]"                 ^ " \n" ^
-  "   imul r9, 8"                               ^ " \n" ^
+  "   shl r9, 3"                                ^ " \n" ^
   "   MALLOC r9, r9"                            ^ " \n" ^(* param vector malloced  *)
   "   mov qword[r10], r9"                       ^ " \n" ^(* [ExtEnv[0]]=r9  *)
   
@@ -521,11 +521,11 @@ and simple_genHelper consts fvars bodyOfLambda envLayer =
   
   "   mov r15, r11"                             ^ " \n" ^(* r15=i  *)
   "   add r15, 4"                               ^ " \n" ^(* r15=i+4  *)
-  "   imul r15, 8"                              ^ " \n" ^(* r15=8*(i+4)  *)
+  "   shl r15, 3"                               ^ " \n" ^(* r15=8*(i+4)  *)
   "   add r15, rbp"                             ^ " \n" ^(* r15=8*(i+4)+rbp=param[i]  *)
   
   "   mov r14, r11"                             ^ " \n" ^(* r14=i  *)
-  "   imul r14, 8"                              ^ " \n" ^(* r14=8*i  *)
+  "   shl r14, 3"                               ^ " \n" ^(* r14=8*i  *)
   "   add r14, r9"                              ^ " \n" ^(* r15=8*i+param vector  *)
   
   "   mov qword[r14], r15"                      ^ " \n" ^(* [vector[i]]=r15  *)
@@ -561,8 +561,43 @@ and simple_genHelper consts fvars bodyOfLambda envLayer =
   ) 
 
 
-and applic_genHelper rator rands envLayer =
-  raise X_syntax_error
+and applic_genLoper consts fvars rands envLayer =
+  match rands with
+  | [] -> ""
+  | a :: b -> 
+      (code_genScanner consts fvars a envLayer) ^ " \n" ^(* eval current rand *)
+      "   push rax"                             ^ " \n" ^(* save answer  *)
+      (applic_genLoper consts fvars b envLayer)  
+
+  
+
+and applic_genHelper consts fvars rator rands envLayer =
+  labelCounterInc();
+  let aLabel = labelCounterGet() in
+  let nRands = (List.length rands) in
+  let randsLoper = (applic_genLoper consts fvars (List.rev rands) envLayer) in
+  
+  (
+
+  (randsLoper)                                  ^ " \n" ^(* eval rands and push *)
+  "   push " ^(string_of_int nRands)            ^ " \n" ^(* push nRands  *)
+  (code_genScanner consts fvars rator envLayer) ^ " \n" ^(* eval rator *)
+  "   cmp byte[rax], T_CLOSURE"                 ^ " \n" ^(* check if rator is closure*)
+  "   je ApplicError" ^ (string_of_int aLabel)  ^ " \n" ^(* error if no closure *)
+  
+  "   push qword[rax+TYPE_SIZE]"                ^ " \n" ^(* push closure Env*)
+  "   call qword[rax+TYPE_SIZE+WORD_BYTES]"     ^ " \n" ^(* call closure code*)
+  (*
+  upon return, pop env and args,
+  we notice args can have different length after call so we take back nRands 
+  *)
+  "   add rsp, 8*1"                             ^ " \n" ^(* pop Env *)
+  "   pop rbx"                                  ^ " \n" ^(* pop nRands count *)
+  "   shl rbx, 3"                               ^ " \n" ^(* nRands*8 *)
+  "   add rsp, rbx"                             ^ " \n" ^(* pop nRands *)
+  "ApplicError"  ^(string_of_int aLabel) ^ ":"  ^ " \n" 
+
+  )
 
 
   
