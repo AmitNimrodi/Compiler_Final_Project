@@ -78,7 +78,7 @@ let getAndInc x =
       | Void, Sexpr s2 -> false
       | Sexpr s1, Void -> false
       | Sexpr s1, Sexpr s2 -> sexpr_eq s1 s2
-      | any -> raise X_syntax_error
+      (* | any -> raise X_syntax_error *)
       ;;  
 
 
@@ -219,12 +219,12 @@ and tupleMaker sexpr tuplesList = (* TODO: which strings should be inputted with
     (match sexprTuple with
     | (Sexpr(x), (off, representation)) -> (constsEqualizer (Sexpr(x)) (Sexpr(vari)))
     | (Void, (off, representation))     -> (constsEqualizer Void (Sexpr(vari)))
-    | any -> raise X_syntax_error
+    (* | any -> raise X_syntax_error *)
     ) in
   let offsetPointer vari =
     ( match (List.find (pred vari) tuplesList) with
       | (x, (off, representation)) -> off
-      | any                        -> raise X_syntax_error
+      (* | any                        -> raise X_syntax_error *)
     ) in
   let offsetA = (offsetPointer first) in
   let offsetB = (offsetPointer second) in
