@@ -78,7 +78,6 @@ let getAndInc x =
       | Void, Sexpr s2 -> false
       | Sexpr s1, Void -> false
       | Sexpr s1, Sexpr s2 -> sexpr_eq s1 s2
-      | any -> raise X_syntax_error
       ;;  
 
 
@@ -183,7 +182,7 @@ and pairExtender expr =
 
 and tupleListMaker sexprsList tuplesList = 
   match sexprsList with
-  | []                    -> []
+  | []                    -> tuplesList
   | a :: b                -> (
     match a with
     | Void                -> (tupleListMaker b tuplesList)
@@ -191,7 +190,7 @@ and tupleListMaker sexprsList tuplesList =
     | Sexpr(Bool(true))   -> (tupleListMaker b tuplesList)
     | Sexpr(Bool(false))  -> (tupleListMaker b tuplesList)
     | any                 -> (let lis = (List.append tuplesList [(tupleMaker a tuplesList)]) in
-                             ( List.append lis (tupleListMaker b lis) )
+                             (tupleListMaker b lis)
                              )
                             )
 
@@ -219,12 +218,10 @@ and tupleMaker sexpr tuplesList = (* TODO: which strings should be inputted with
     (match sexprTuple with
     | (Sexpr(x), (off, representation)) -> (constsEqualizer (Sexpr(x)) (Sexpr(vari)))
     | (Void, (off, representation))     -> (constsEqualizer Void (Sexpr(vari)))
-    | any -> raise X_syntax_error
     ) in
   let offsetPointer vari =
     ( match (List.find (pred vari) tuplesList) with
       | (x, (off, representation)) -> off
-      | any                        -> raise X_syntax_error
     ) in
   let offsetA = (offsetPointer first) in
   let offsetB = (offsetPointer second) in
@@ -675,18 +672,7 @@ and opt_genHelper lambdaParams vs bodyOfLambda envLayer =
 and applicTP_genHelper rator rands envLayer =
   raise X_syntax_error
 
-
-
-  
-    
 ;;
-
-
-
-
-
-
-
 
   let make_consts_tbl asts = const_table_maker asts ;;
   let make_fvars_tbl asts = free_table_maker asts ;;
@@ -706,16 +692,19 @@ and applicTP_genHelper rator rands envLayer =
     (run_semantics
      (tag_parse_expression
       (read_sexpr
-        "((define x 2) (define y 3))"
+        "((define x 2) (define y 3) (define z 4))"
       )
      )
     );;
+  
+  Applic' (Def' (Var' (VarFree "x"), Const' (Sexpr (Number (Int 2)))),
+    [Def' (Var' (VarFree "y"), Const' (Sexpr (Number (Int 3))));
+     Def' (Var' (VarFree "z"), Const' (Sexpr (Number (Int 4))))])
 
-  run_semantics (
-    Applic (Def (Var "x", Const (Sexpr (Number (Int 2)))),
-   [Def (Var "y", Const (Sexpr (Number (Int 3))))])
-   );;  
-
+ make_consts_tbl [
+  Applic' (Def' (Var' (VarFree "x"), Const' (Sexpr (Number (Int 2)))),
+    [Def' (Var' (VarFree "y"), Const' (Sexpr (Number (Int 3))));
+     Def' (Var' (VarFree "z"), Const' (Sexpr (Number (Int 4))))])]
   *) 
 
 
