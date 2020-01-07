@@ -21,7 +21,7 @@ type expr' =
   | Applic' of expr' * (expr' list)
   | ApplicTP' of expr' * (expr' list);;
 
-let rec expr'_eq e1 e2 =
+(* let rec expr'_eq e1 e2 =
   match e1, e2 with
   | Const' Void, Const' Void -> true
   | Const'(Sexpr s1), Const'(Sexpr s2) -> sexpr_eq s1 s2
@@ -47,7 +47,7 @@ let rec expr'_eq e1 e2 =
   | ApplicTP'(e1, args1), ApplicTP'(e2, args2) ->
 	 (expr'_eq e1 e2) &&
 	   (List.for_all2 expr'_eq args1 args2)
-  | _ -> false;;
+  | _ -> false;; *)
 	
                        
 exception X_syntax_error;;

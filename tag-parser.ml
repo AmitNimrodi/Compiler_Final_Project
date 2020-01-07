@@ -16,7 +16,7 @@ type expr =
   | LambdaOpt of string list * string * expr
   | Applic of expr * (expr list);;
 
-let rec expr_eq e1 e2 =
+(* let rec expr_eq e1 e2 =
   match e1, e2 with
   | Const Void, Const Void -> true
   | Const(Sexpr s1), Const(Sexpr s2) -> sexpr_eq s1 s2
@@ -39,7 +39,7 @@ let rec expr_eq e1 e2 =
   | Applic(e1, args1), Applic(e2, args2) ->
      (expr_eq e1 e2) &&
        (List.for_all2 expr_eq args1 args2)
-  | _ -> false;;
+  | _ -> false;; *)
 	
                        
 exception X_syntax_error;;
