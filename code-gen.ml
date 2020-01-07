@@ -48,6 +48,11 @@ module Code_Gen : CODE_GEN = struct
   (*       HERE WE ARE STARTING WITH THE ASSIGNMENT!!!    *)
   (*       HERE WE ARE STARTING WITH THE ASSIGNMENT!!!    *)
   (*       HERE WE ARE STARTING WITH THE ASSIGNMENT!!!    *)
+  
+
+
+
+
 
 
 let type_size = 1 ;;
@@ -149,7 +154,7 @@ and findConsts listOfExprs =
 match listOfExprs with
   | []     -> []
   | a :: b -> ( List.append (constScanner a) (findConsts b) ) 
-  
+   
    (* input: [Sexpr(Pair(Number(Int(1)), Pair(Number(Int(2)), Nil))); Sexpr(Symbol("ab"))]
       output: [Sexpr(Number(Int(1))); Sexpr(Number(Int(2))); Sexpr(Pair(Number(Int(2)), Nil));
              Sexpr(Pair(Number(Int(1)), Pair(Number(Int(2)), Nil))); Sexpr(String("ab")); Sexpr(Symbol("ab"))]    *)
@@ -381,57 +386,311 @@ and varScanner vari =
   (*       HERE WE ARE FINISHED WITH THE FREE_TABLE!!!    *)
   (*       HERE WE ARE FINISHED WITH THE FREE_TABLE!!!    *)
   
+let labelCounter = ref 0 ;;    
+let labelCounterInc() = labelCounter := !labelCounter + 1 ;;
+let labelCounterGet() = !labelCounter;;
 
 
 
+let rec code_gen_maker consts fvars e =
+  (* let somthing = (code_genScanner consts fvars e 0 ) in *)
+  "hello: Yoav Is King"
 
 
-and code_genScanner exp = 
+
+and code_genScanner consts fvars exp envLayer = 
   match exp with
   | Const'(sexpr)                             -> 
-                            (const_genHelper sexpr)
+            (const_genHelper sexpr envLayer)
   | Var'(VarParam(name,mino))                 -> 
-                            (varParam_genHelper mino)
+            (varParam_genHelper mino envLayer)
   | Var'(VarBound(name,majo,mino))            -> 
-                            (varBound_genHelper majo mino)
+            (varBound_genHelper majo mino envLayer)
   | Var'(VarFree(name))                       -> 
-                            (varFree_genHelper name)
-  | Set'(VarParam(name,mino), valu)           -> 
-                            (setvarParam_genHelper mino valu)
-  | Set'(VarBound(name,majo,mino), valu)      ->
-                            (setvarBound_genHelper majo mino valu)
-  | Set'(VarFree(name), valu)                 -> 
-                            (setvarFree_genHelper name valu)
+            (varFree_genHelper name envLayer)
+  | Set'(Var'(VarParam(name,mino)), valu)     -> 
+            (setvarParam_genHelper mino valu envLayer)
+  | Set'(Var'(VarBound(name,majo,mino)), valu)->
+            (setvarBound_genHelper majo mino valu envLayer)
+  | Set'(Var'(VarFree(name)), valu)           -> 
+            (setvarFree_genHelper name valu envLayer)
   | Seq'(listOfexprs)                         -> 
-                            (seq_genHelper listOfexprs)
+            (seq_genHelper listOfexprs envLayer)
   | Or'(listOfexprs)                          -> 
-                            (or_genHelper listOfexprs)
+            (or_genHelper listOfexprs envLayer)
   | If'(test,dit,dif)                         -> 
-                            (if_genHelper test dit dif)
-  | BoxGet'(Var'(head))                       -> 
-                            (boxget_genHelper head)
-  | BoxSet'(Var'(head),valu)                  -> 
-                            (boxset_genHelper head valu)
+            (if_genHelper consts fvars test dit dif envLayer)
+  | BoxGet'(head)                             -> 
+            (boxget_genHelper head envLayer)
+  | BoxSet'(head,valu)                        -> 
+            (boxset_genHelper head valu envLayer)
   | LambdaSimple'(lambdaParams, bodyOfLambda) -> 
-                            (simple_genHelper lambdaParams bodyOfLambda)
+            (simple_genHelper consts fvars bodyOfLambda envLayer)
   | Applic'(rator, rands)                     -> 
-                            (applic_genHelper rator rands)
+            (applic_genHelper consts fvars rator rands envLayer)
   | LambdaOpt'(lambdaParams, vs, bodyOfLambda)-> 
-                            (opt_genHelper lambdaParams vs bodyOfLambda)
+            (opt_genHelper lambdaParams vs bodyOfLambda envLayer)
   | ApplicTP'(rator, rands)                   ->
-                            (applic_genHelper rator rands)
+            (applicTP_genHelper rator rands envLayer)
   
   
   | Def'(head, valu)                          -> raise X_syntax_error
   | Box'(name)                                -> raise X_syntax_error
+  | any                                       -> raise X_syntax_error
+  
+
+
+and const_genHelper sexpr envLayer =
+  raise X_syntax_error
+
+
+and varParam_genHelper mino envLayer =
+  raise X_syntax_error
+
+
+and varBound_genHelper majo mino envLayer =
+  raise X_syntax_error
+
+
+and varFree_genHelper name envLayer =
+  raise X_syntax_error
+
+
+and setvarParam_genHelper mino valu envLayer =
+  raise X_syntax_error
+
+
+and setvarBound_genHelper majo mino valu envLayer =
+  raise X_syntax_error
+
+
+and setvarFree_genHelper name valu envLayer =
+  raise X_syntax_error
+
+
+and seq_genHelper listOfexprs envLayer =
+  raise X_syntax_error
+
+
+and or_genHelper listOfexprs envLayer =
+  raise X_syntax_error
+
+
+
+(* 
+    First, we get uniqe label, then we concat assembly string:
+    eval test
+    cmp to false to see if jmp to else_label
+    eval dit
+    jmp to exit_label
+    else_label
+    eval dif
+    exit_label
+*)
+and if_genHelper consts fvars test dit dif envLayer =
+  labelCounterInc();
+  let ifLable = labelCounterGet() in
+  (
+  (code_genScanner consts fvars test envLayer)  ^ " \n" ^
+  "   cmp rax, SOB_FALSE"                       ^ " \n" ^
+  "   je  Lelse" ^ (string_of_int ifLable)      ^ " \n" ^
+  (code_genScanner consts fvars dit envLayer)   ^ " \n" ^
+  "   jmp  Lexit" ^ (string_of_int ifLable)     ^ " \n" ^
+  "Lelse" ^ (string_of_int ifLable) ^ ":"       ^ " \n" ^
+  (code_genScanner consts fvars dif envLayer)   ^ " \n" ^
+  "Lexit" ^ (string_of_int ifLable) ^ ":"       ^ " \n" 
+  )
+  
+
+and boxget_genHelper head envLayer =
+  raise X_syntax_error
+
+
+and boxset_genHelper head valu envLayer =
+  raise X_syntax_error
+
+
+
+(* 
+    First, we get uniqe label, then we concat assembly string:
+    allocate ExtEnv using malloc
+    copy pointers of minor vectors from Env to ExtEnv
+    allocate new vector for ExtEnv(0) using malloc
+    copy parameters from stack
+    allocate closure object, adress in rax
+    set rax.env = ExtEnv
+    set rax.code = Lcode
+    jmp Lcont
+    Lcode: save rbp, eval body, return.
+    Lcont: rest of code
+*)
+and simple_genHelper consts fvars bodyOfLambda envLayer =
+  labelCounterInc();
+  let sLabel = labelCounterGet() in
+  (
+
+  "   mov r10, " ^ (string_of_int(envLayer+1))  ^ " \n" ^
+  "   shl r10, 3"                               ^ " \n" ^
+  "   MALLOC r10, r10"                          ^ " \n" ^(* ExtEnv malloced  *)
+  
+  
+  (* 
+    for( r11=i=0 , r12=j=1 ; r11 < r13=envLayer ; r11++ , r12++)
+    ( ExtEnv[r12=j] = Env[r11=i])
+  *)
+  
+  "   mov r11, 0"                               ^ " \n" ^(* i=0  *)
+  "   mov r12, 1"                               ^ " \n" ^(* j=1  *)
+  "   mov r13, " ^ (string_of_int envLayer)     ^ " \n" ^(* r13=envLayer  *)
+
+  "ExtEnvLoop"   ^ (string_of_int sLabel) ^ ":" ^ " \n" ^
+  "   cmp r11, r13"                             ^ " \n" ^(* i=j?  *)
+  "   je ExtEnvEnd" ^ (string_of_int sLabel)    ^ " \n" ^
+  
+  
+  "   mov r14, qword[rbp + 8*2]"                ^ " \n" ^(* Env in stack  *)
+  "   mov r8, r10"                              ^ " \n" ^(* ExtEnv malloced  *)
+  
+  "   mov r15, r11"                             ^ " \n" ^(* r15=i  *)
+  "   shl r15, 3"                               ^ " \n" ^(* r15=8*i  *)
+  "   add r14, r15"                             ^ " \n" ^(* r14=Env[i]  *)
+  
+  "   mov r15, r12"                             ^ " \n" ^(* r15=j  *)
+  "   shl r15, 3"                               ^ " \n" ^(* r15=8*j  *)
+  "   add r8, r15"                              ^ " \n" ^(* r8=ExtEnv[j]  *)
+  
+
+  "   mov r15, qword[r14]"                      ^ " \n" ^(* r15=[Env[i]]  *)
+  "   mov qword[r8], r15"                       ^ " \n" ^(* [ExtEnv[j]]=r15  *)
+
+
+  "   add r11, 1"                               ^ " \n" ^(* i++  *)
+  "   add r12, 1"                               ^ " \n" ^(* j++  *)
+  "   jmp ExtEnvLoop" ^ (string_of_int sLabel)  ^ " \n" ^
+  "ExtEnvEnd"    ^ (string_of_int sLabel) ^ ":" ^ " \n" ^
+
+  "   mov r11, 0"                               ^ " \n" ^(* i=0  *)
+  "   mov r13, qword[rbp + 8*3]"                ^ " \n" ^(* r13=paramcount  *)
+  "   mov r9, qword[rbp + 8*3]"                 ^ " \n" ^
+  "   shl r9, 3"                                ^ " \n" ^
+  "   MALLOC r9, r9"                            ^ " \n" ^(* param vector malloced  *)
+  "   mov qword[r10], r9"                       ^ " \n" ^(* [ExtEnv[0]]=r9  *)
+  
+  (* 
+    for( r11=i=0 ; r11 < r13=paramcount ; r11++ )
+    ( ExtEnv[r12=j] = Env[r11=i])
+  *)
+  
+  "ParamEnvLoop" ^ (string_of_int sLabel) ^ ":" ^ " \n" ^
+  "   cmp r11, r13"                             ^ " \n" ^(* i=paramcount?  *)
+  "   je ParamEnvEnd" ^ (string_of_int sLabel)  ^ " \n" ^
+  
+  "   mov r15, r11"                             ^ " \n" ^(* r15=i  *)
+  "   add r15, 4"                               ^ " \n" ^(* r15=i+4  *)
+  "   shl r15, 3"                               ^ " \n" ^(* r15=8*(i+4)  *)
+  "   add r15, rbp"                             ^ " \n" ^(* r15=8*(i+4)+rbp=param[i]  *)
+  
+  "   mov r14, r11"                             ^ " \n" ^(* r14=i  *)
+  "   shl r14, 3"                               ^ " \n" ^(* r14=8*i  *)
+  "   add r14, r9"                              ^ " \n" ^(* r15=8*i+param vector  *)
+  
+  "   mov qword[r14], r15"                      ^ " \n" ^(* [vector[i]]=r15  *)
+
+
+  "   add r11, 1"                               ^ " \n" ^(* i++  *)
+  "   jmp ParamEnvLoop" ^(string_of_int sLabel) ^ " \n" ^
+  "ParamEnvEnd"  ^ (string_of_int sLabel) ^ ":" ^ " \n" ^
+  
+  (* 
+    allocate closure object, adress in rax.
+    set closure env and code(second and third parameters to make_closure)
+    jump to continue.
+  *)
+
+  "   mov rax, r10"                             ^ " \n" ^(* rax=ExtEnv  *)
+  "   MAKE_CLOSURE( rax, r10,Lcode" 
+                 ^(string_of_int sLabel) ^ ")"  ^ " \n" ^(* rax=closure  *)
+  "   jmp Lcont" ^(string_of_int sLabel)        ^ " \n" ^
+
+  
+  "Lcode"        ^(string_of_int sLabel) ^ ":"  ^ " \n" ^
+  "   push rbp"                                 ^ " \n" ^(* save pointer  *)
+  "   mov rbp, rsp"                             ^ " \n" ^(* point to new closure  *)
+  (code_genScanner consts fvars bodyOfLambda (envLayer+1))
+                                                ^ " \n" ^
+  "   leave"                                    ^ " \n" ^(* rax=ExtEnv  *)
+  "   ret"                                      ^ " \n" ^(* rax=ExtEnv  *)
+  
+  "Lcont"        ^(string_of_int sLabel) ^ ":"  ^ " \n" 
+
+  
+  ) 
+
+
+and applic_genLoper consts fvars rands envLayer =
+  match rands with
+  | [] -> ""
+  | a :: b -> 
+      (code_genScanner consts fvars a envLayer) ^ " \n" ^(* eval current rand *)
+      "   push rax"                             ^ " \n" ^(* save answer  *)
+      (applic_genLoper consts fvars b envLayer)  
+
+  
+
+and applic_genHelper consts fvars rator rands envLayer =
+  labelCounterInc();
+  let aLabel = labelCounterGet() in
+  let nRands = (List.length rands) in
+  let randsLoper = (applic_genLoper consts fvars (List.rev rands) envLayer) in
+  
+  (
+
+  (randsLoper)                                  ^ " \n" ^(* eval rands and push *)
+  "   push " ^(string_of_int nRands)            ^ " \n" ^(* push nRands  *)
+  (code_genScanner consts fvars rator envLayer) ^ " \n" ^(* eval rator *)
+  "   cmp byte[rax], T_CLOSURE"                 ^ " \n" ^(* check if rator is closure*)
+  "   je ApplicError" ^ (string_of_int aLabel)  ^ " \n" ^(* error if no closure *)
+  
+  "   push qword[rax+TYPE_SIZE]"                ^ " \n" ^(* push closure Env*)
+  "   call qword[rax+TYPE_SIZE+WORD_BYTES]"     ^ " \n" ^(* call closure code*)
+  (*
+  upon return, pop env and args,
+  we notice args can have different length after call so we take back nRands 
+  *)
+  "   add rsp, 8*1"                             ^ " \n" ^(* pop Env *)
+  "   pop rbx"                                  ^ " \n" ^(* pop nRands count *)
+  "   shl rbx, 3"                               ^ " \n" ^(* nRands*8 *)
+  "   add rsp, rbx"                             ^ " \n" ^(* pop nRands *)
+  "ApplicError"  ^(string_of_int aLabel) ^ ":"  ^ " \n" 
+
+  )
+
+
+  
+and opt_genHelper lambdaParams vs bodyOfLambda envLayer =
+  raise X_syntax_error
+
+
+  
+and applicTP_genHelper rator rands envLayer =
+  raise X_syntax_error
+
+
+
   
     
 ;;
 
 
-  let make_consts_tbl asts = raise X_not_yet_implemented (* const_table_maker asts  *);;
-  let make_fvars_tbl asts = raise X_not_yet_implemented;;
-  let generate consts fvars e = raise X_not_yet_implemented;;
+
+
+
+
+
+
+  let make_consts_tbl asts = const_table_maker asts ;;
+  let make_fvars_tbl asts = free_table_maker asts ;;
+  let generate consts fvars e = code_gen_maker consts fvars e ;;
 
   end;;
 
