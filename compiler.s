@@ -141,6 +141,28 @@
 %define MAKE_LITERAL_PAIR(car, cdr) \
         MAKE_WORDS_LIT T_PAIR, car, cdr
 
+%macro MAKE_LITERAL 2 ; Make a literal of type %1
+					; followed by the definition %2
+		db %1
+		%2
+%endmacro
+
+%macro MAKE_LITERAL_STRING 1
+db T_STRING
+dq (%%end_str - %%str)
+%%str:
+db %1
+%%end_str:
+%endmacro
+
+%define MAKE_LITERAL_INT(val) MAKE_LITERAL T_INTEGER, dq val
+%define MAKE_LITERAL_CHAR(val) MAKE_LITERAL T_CHAR, db val
+;TODO: 
+;%define MAKE_LITERAL_SYMBOL()
+%define MAKE_NIL db T_NIL
+%define MAKE_VOID db T_VOID
+%define MAKE_BOOL(val) MAKE_LITERAL T_BOOL, db val
+
 %define MAKE_CLOSURE(r, env, body) \
         MAKE_TWO_WORDS r, T_CLOSURE, env, body
 

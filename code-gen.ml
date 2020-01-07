@@ -53,12 +53,30 @@ module Code_Gen : CODE_GEN = struct
 let type_size = 1 ;;
 let word_size = 8 ;;
 let num_char_size = (type_size + word_size) ;;
+let pair_size = (2*word_size + type_size) ;;
+let tagCounter = ref 1 ;;
+let tagCounterInc x = tagCounter := !tagCounter + x;;
+let getAndIncTagCounter x = 
+  let valu = !tagCounter in
+  (tagCounterInc x);
+  valu;;
 let byteCounter = ref 6 ;;    (* we start with 6 because of the basics table. *)
 let byteCounterInc x = byteCounter := !byteCounter + x ;;
 let getAndInc x =
   let valu = !byteCounter in
   (byteCounterInc x); 
   valu;;
+
+  let constsEqualizer e1 e2 =
+    match e1, e2 with
+      | Void, Void -> true
+      | Void, Sexpr s2 -> false
+      | Sexpr s1, Void -> false
+      | Sexpr s1, Sexpr s2 -> sexpr_eq s1 s2
+      | any -> raise X_syntax_error
+      ;;  
+
+
 
 (* TEST:  cleanDupes [1;1;1;2;3;4;5;4;3;3;6;2;2]  
 TODO: might not know how to equalise objects - use expr'_eq instead *)
@@ -79,17 +97,53 @@ and cleanDupesinner sexprList =
 let rec const_table_maker listOfExprs = 
   
   let constSexprsList      = ( findConsts listOfExprs ) in
-  let dupelessConstList    = ( cleanDupes constSexprsList ) in
+  let fixedTagsList        = ( tagFixConstList constSexprsList ) in
+  let dupelessConstList    = ( cleanDupes fixedTagsList ) in
   let extendedList         = ( extendList dupelessConstList) in
   let dupelessExtendedList = ( cleanDupes extendedList ) in
-  let basicList            = [ (Void, (0, "MAKE_VOID"));                  (Sexpr(Nil), (1, "MAKE_NIL"));
+  (*let basicList            = [ (Void, (0, "MAKE_VOID"));                  (Sexpr(Nil), (1, "MAKE_NIL"));
                             (Sexpr(Bool(false)), (2, "MAKE_BOOL(0)")); (Sexpr(Bool(true)), (4, "MAKE_BOOL(1)")) ] in 
+                            
   let tupledList           = ( tupleListMaker dupelessExtendedList basicList ) in
-  (*
-  let offsetFixedList      = offsetFixer  ( List.append basicList tupledList ) in
-  offsetFixedList
   *)
+  let tupledList           = ( tupleListMaker dupelessExtendedList [] ) in
   tupledList
+
+(*TEST:
+
+[Sexpr (TaggedSexpr ("a", Number (Int 2)));
+ Sexpr (Pair (TaggedSexpr ("a", Bool true), Pair (TagRef "a", Nil)))]
+*)
+and tagFixConstList constSexprsList = 
+  match constSexprsList with
+  | [] -> []
+  | a :: b -> (
+    match a with 
+    | Sexpr(something) -> ( List.append [(fixThisTag something (string_of_int (getAndIncTagCounter 1)))] (tagFixConstList b) )
+    | any -> raise X_syntax_error
+  )
+
+and fixThisTag a fixer=
+  match a with
+  | Pair(first,second)  -> (pairTagFixer first second fixer) (* (Sexpr(Pair((fixThisTag first fixer), (fixThisTag second fixer)))) *)
+  | TaggedSexpr(x,valu) -> (Sexpr(TaggedSexpr((x^fixer), valu)))
+  | TagRef(x)           -> (Sexpr(TagRef(x^fixer)))
+  | any                 -> (Sexpr(a))
+
+and pairTagFixer first second fixer = 
+  let fixedFirst = (fixThisTag first fixer) in
+  let fixedSecond = (fixThisTag second fixer) in
+  let fixFirst = (
+    match fixedFirst with
+    | Sexpr(something) -> something
+    | any -> raise X_syntax_error
+  ) in 
+  let fixSecond = (
+    match fixedSecond with
+    | Sexpr(something) -> something
+    | any -> raise X_syntax_error
+  ) in
+  (Sexpr(Pair(fixFirst,fixSecond)))
 
 and findConsts listOfExprs = 
 match listOfExprs with
@@ -139,53 +193,61 @@ and tupleListMaker sexprsList tuplesList =
 and tupleMaker sexpr tuplesList = (* TODO: which strings should be inputted with each type? *)
   match sexpr with
   | Sexpr(Number(Int(valu)))           -> let offset = getAndInc(num_char_size) in 
-                                          (sexpr, (offset, "MAKE_INT("^ (string_of_int valu) ^")"))
+                                          (sexpr, (offset, "MAKE_LITERAL_INT(" ^ (string_of_int valu) ^")"))
   | Sexpr(Number(Float(valu)))         -> let offset = getAndInc(num_char_size) in 
-                                          (sexpr, (offset, "MAKE_FLOAT("^ (string_of_float valu) ^")"))
+                                          (sexpr, (offset, "MAKE_LITERAL_FLOAT(" ^ (string_of_float valu) ^")"))
   | Sexpr(Char(valu))                  -> let offset = getAndInc(num_char_size) in 
-                                          (sexpr, (offset, "MAKE_CHAR("^  (Char.escaped valu) ^")"))
+                                          (sexpr, (offset, "MAKE_LITERAL_CHAR(" ^ (Char.escaped valu) ^")"))
   | Sexpr(String(str))                 -> let len = (String.length str) in
-                                          let offset = getAndInc((type_size + len + num_char_size)) in
-                                          (sexpr, (offset, "MAKE_STRING("^ str ^")"))
-  | Sexpr(Symbol(str))                 -> (symbolTupleMaker sexpr tuplesList)
-  | Sexpr(Pair(a,b))                   -> raise X_syntax_error
+                                          let offset = getAndInc((len + num_char_size)) in
+                                          (sexpr, (offset, "MAKE_LITERAL_STRING " ^ str))
+  | Sexpr(Symbol(str))                 -> let offset = getAndInc(num_char_size) in
+                                          (sexpr, (offset, "MAKE_LITERAL_SYMBOL(const_tbl+" ^ (symbolTupleMaker sexpr tuplesList) ^ ")"))
+  | Sexpr(Pair(first,second))          -> (pairTupleMaker first second tuplesList)
   | Sexpr(TaggedSexpr(a,b))            -> raise X_syntax_error
-  | Sexpr(TagRef(a))                 -> raise X_syntax_error
-  | any                                -> raise X_syntax_error
+  | Sexpr(TagRef(a))                   -> raise X_syntax_error
+  | any                                -> raise X_syntax_error (*TO CHECK: Nil/Void/Boolean might get here from a recursive call on a pair *)
 
 
-  (* TEST :  symbolTupleMaker (Symbol("aaa")) [(Sexpr(String("aa")), (6,"something"));  (Sexpr(String("aaa")), (17, "something"))];;
+  and pairTupleMaker first second tuplesList = 
+  let pred vari sexprTuple = 
+    (match sexprTuple with
+    | (Sexpr(x), (off, representation)) -> (constsEqualizer (Sexpr(x)) (Sexpr(vari)))
+    | (Void, (off, representation))     -> (constsEqualizer Void (Sexpr(vari)))
+    | any -> raise X_syntax_error
+    ) in
+  let offsetPointer vari =
+    ( match (List.find (pred vari) tuplesList) with
+      | (x, (off, representation)) -> off
+      | any                        -> raise X_syntax_error
+    ) in
+  let offsetA = (offsetPointer first) in
+  let offsetB = (offsetPointer second) in
+  let valu = getAndInc(pair_size) in
+  (Sexpr(Pair(first,second)), (valu, "MAKE_LITERAL_PAIR(const_tbl+"^(string_of_int offsetA)^ ", const_tbl+"^(string_of_int offsetB) ^")"))
+  
+
+
+  (* TEST :  symbolTupleMaker (Sexpr(Symbol("aaa"))) [(Sexpr(String("aa")), (6,"something"));  (Sexpr(String("aaa")), (17, "something"))];;
      EXPECTED OUTPUT: (Symbol "aaa", (23, "MAKE_SYMBOL(17)")) *)
 and symbolTupleMaker sexpr tuplesList = 
   let str = ( match sexpr with
     | Sexpr(Symbol(stri)) -> stri
     | any -> raise X_syntax_error ) in
-  let valu = getAndInc(type_size + num_char_size) in
   let pred sexprTuple = 
   ( match sexprTuple with
     | (Sexpr(String(strin)), (off, representation)) -> if (strin=str) then true else false
-    | any -> false
+    | any -> raise X_syntax_error
   ) in
   let offsetPointer =
   ( match (List.find pred tuplesList) with
     | (Sexpr(String(strin)), (off, representation)) -> off
     |  any -> raise X_syntax_error
   ) in
-  (sexpr, (valu, "MAKE_SYMBOL("^(string_of_int offsetPointer)^")"))
+  (string_of_int offsetPointer)
+  
+  
 
-(*TEST:  offsetFixer [("a",(3,"a")); ("b",(4,"f")); ("c",(3,"f"))];;   *)
-(*
-and offsetFixer lis = 
-  let fixerFunc countVal (sexpr, (oldVal, string))  =
-    let countVal = !byteCounter in 
-    
-    begin 
-    byteCounterInc() ;
-    (sexpr, (countVal, string))
-    end in
-  let fixer = (fixerFunc (!byteCounter)) in
-  ( List.map fixer lis )
-*)
 
 and constScanner exp = (* should each match case be wrapped with Expr'(intervalValue) ? *)
   match exp with
@@ -210,6 +272,10 @@ and seqConstScanHelper listOfExprs =
     | []     -> []
     | a :: b -> ( List.append (constScanner a) (seqConstScanHelper b) )
 
+(* test:
+(Def' (Var' (VarFree "y"),
+ Const' (Sexpr (Pair (TaggedSexpr ("a", Bool true), Pair (TagRef "a", Nil))))))
+  *)
 ;;
 
 
