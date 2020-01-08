@@ -432,7 +432,7 @@ and code_genScanner consts fvars exp envLayer =
   | LambdaOpt'(lambdaParams, vs, bodyOfLambda)-> 
             (opt_genHelper lambdaParams vs bodyOfLambda envLayer)
   | ApplicTP'(rator, rands)                   ->
-            (applicTP_genHelper rator rands envLayer)
+            (applicTP_genHelper consts fvars rator rands envLayer)
   
   
   | Def'(head, valu)                          -> raise X_syntax_error
@@ -647,23 +647,28 @@ and applic_genHelper consts fvars rator rands envLayer =
   (
 
   (randsLoper)                                  ^ " \n" ^(* eval rands and push *)
-  "   push " ^(string_of_int nRands)            ^ " \n" ^(* push nRands  *)
+  "   mov r10, " ^(string_of_int nRands)        ^ " \n" ^(* r10 =nRands  *)
+  "   push r10"                                 ^ " \n" ^(* push nRands  *)
   (code_genScanner consts fvars rator envLayer) ^ " \n" ^(* eval rator *)
   "   cmp byte[rax], T_CLOSURE"                 ^ " \n" ^(* check if rator is closure*)
   "   je ApplicError" ^ (string_of_int aLabel)  ^ " \n" ^(* error if no closure *)
   
-  "   push qword[rax+TYPE_SIZE]"                ^ " \n" ^(* push closure Env*)
-  "   call qword[rax+TYPE_SIZE+WORD_BYTES]"     ^ " \n" ^(* call closure code*)
+  "   CLOSURE_ENV r9, rax"                      ^ " \n" ^(* r9 = Env  *)
+  "   push r9"                                  ^ " \n" ^(* push closure Env*)
+  "   CLOSURE_CODE r8, rax"                     ^ " \n" ^(* r9 = code  *)
+  "   call r8"                                  ^ " \n" ^(* call closure code*)
   (*
   upon return, pop env and args,
-  we notice args can have different length after call so we take back nRands 
+  we notice args can have different length after call so we
+  take back nRands, and pop env iff rator is of type closure
   *)
   "   add rsp, 8*1"                             ^ " \n" ^(* pop Env *)
+  
+  "ApplicError"  ^(string_of_int aLabel) ^ ":"  ^ " \n" ^
   "   pop rbx"                                  ^ " \n" ^(* pop nRands count *)
   "   shl rbx, 3"                               ^ " \n" ^(* nRands*8 *)
-  "   add rsp, rbx"                             ^ " \n" ^(* pop nRands *)
-  "ApplicError"  ^(string_of_int aLabel) ^ ":"  ^ " \n" 
-
+  "   add rsp, rbx"                             ^ " \n" (* pop nRands *)
+  
   )
 
 
@@ -673,9 +678,82 @@ and opt_genHelper lambdaParams vs bodyOfLambda envLayer =
 
 
   
-and applicTP_genHelper rator rands envLayer =
-  raise X_syntax_error
+and applicTP_genHelper consts fvars rator rands envLayer =
+  labelCounterInc();
+  let aTPLabel = labelCounterGet() in
+  let nTPRands = (List.length rands) in
+  let randsTPLoper = (applic_genLoper consts fvars (List.rev rands) envLayer) in
+  
+  (
 
+  (randsTPLoper)                                ^ " \n" ^(* eval rands and push *)
+  "   mov r10, " ^(string_of_int nTPRands)      ^ " \n" ^(* r10 =nTPRands  *)
+  "   push r10"                                 ^ " \n" ^(* push nTPRands  *)
+  (code_genScanner consts fvars rator envLayer) ^ " \n" ^(* eval rator *)
+  "   cmp byte[rax], T_CLOSURE"                 ^ " \n" ^(* check if rator is closure*)
+  "   je ApplicError" ^ (string_of_int aTPLabel)^ " \n" ^(* error if no closure *)
+  
+  "   CLOSURE_ENV r9, rax"                      ^ " \n" ^(* r9 = Env  *)
+  "   push r9"                                  ^ " \n" ^(* push closure Env*)
+  
+  (*
+  push rbp+8 and move pointers to prepare loop
+  *)
+  "   mov r10, qword[rbp+ 8*1 ]"                ^ " \n" ^(* r10 =oldRetAdress  *)
+  "   push r10"                                 ^ " \n" ^(* push oldRetAdress  *)
+  
+  "   mov r15, qword[rbp+ 8*3 ]"                ^ " \n" ^(* r15 =nTPRands  *)
+  "   add r15, 4"                               ^ " \n" ^(* r15 =nTPRands+4  *)
+  "   shl r15, 3"                               ^ " \n" ^(* r15 =(nTPRands+4)*8  *)
+  
+  "   mov r11, r15"                             ^ " \n" ^(* r11 =(nTPRands+4)*8  *)
+  "   add r11, rbp"                             ^ " \n" ^(* r11 =(nTPRands+4)*8+rbp  *)
+  
+  
+  "   mov r14, qword[rsp+ 8*1 ]"                ^ " \n" ^(* r14 =nTPRands  *)
+  "   add r14, 2"                               ^ " \n" ^(* r14 =nTPRands+2  *)
+  "   shl r14, 3"                               ^ " \n" ^(* r14 =(nTPRands+2)*8  *)
+  
+  "   mov r12, r14"                             ^ " \n" ^(* r12 =(nTPRands+2)*8  *)
+  "   add r12, rsp"                             ^ " \n" ^(* r10 =(nTPRands+2)*8+rsp  *)
+  
+  "   mov r13, qword[rbp]"                      ^ " \n" ^(* save old rbp  *)
+  
+  (*
+  loop with pointers to fix stack
+  *)
+
+  "ApplicTPLoop" ^(string_of_int aTPLabel) ^ ":"^ " \n" ^
+  "   cmp r12, rsp"                             ^ " \n" ^(* r10 =(nTPRands+2)*8+rsp  *)
+  "   je ApplicTPEnd" ^ (string_of_int aTPLabel)^ " \n" ^(* error if no closure *)
+  "   mov r10, qword[r12]"                      ^ " \n" ^(* r10 =oldRetAdress  *)
+  "   mov qword[r11], r10"                      ^ " \n" ^(* r10 =oldRetAdress  *)
+  "   sub r12, 8"                               ^ " \n" ^(* r10 =oldRetAdress  *)
+  "   sub r11, 8"                               ^ " \n" ^(* r10 =oldRetAdress  *)
+  "   jmp ApplicTPLoop"^(string_of_int aTPLabel)^ " \n" ^(* error if no closure *)
+  
+  "ApplicTPEnd" ^(string_of_int aTPLabel) ^ ":" ^ " \n" ^
+  "   mov r10, qword[r12]"                      ^ " \n" ^(* r10 =oldRetAdress  *)
+  "   mov qword[r11], r10"                      ^ " \n" ^(* r10 =oldRetAdress  *)
+  "   mov rbp, r13"                             ^ " \n" ^(* r10 =oldRetAdress  *)
+  "   mov rsp, r11"                             ^ " \n" ^(* r10 =oldRetAdress  *)
+  
+  
+  "   CLOSURE_CODE r8, rax"                     ^ " \n" ^(* r9 = code  *)
+  "   call r8"                                  ^ " \n" ^(* call closure code*)
+  (*
+  upon return, pop env and args,
+  we notice args can have different length after call so we
+  take back nTPRands, and pop env iff rator is of type closure
+  *)
+  "   add rsp, 8*1"                             ^ " \n" ^(* pop Env *)
+  
+  "ApplicError"  ^(string_of_int aTPLabel) ^ ":"^ " \n" ^
+  "   pop rbx"                                  ^ " \n" ^(* pop nTPRands count *)
+  "   shl rbx, 3"                               ^ " \n" ^(* nTPRands*8 *)
+  "   add rsp, rbx"                             ^ " \n" (* pop nTPRands *)
+  
+  )
 
 
   
