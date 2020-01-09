@@ -110,7 +110,8 @@ and tagFixConstList constSexprsList =
   | a :: b -> (
     match a with 
     | Sexpr(something) -> ( List.append [(fixThisTag something (string_of_int (getAndIncTagCounter 1)))] (tagFixConstList b) )
-    | any -> raise X_syntax_error
+    | Void ->  (tagFixConstList b) 
+    
   )
 
 and fixThisTag a fixer=
@@ -153,7 +154,8 @@ and extendList sexprList =
     | Sexpr(Symbol(str)) -> ( List.append [ Sexpr(String(str)); a ] (extendList b) )
     | Sexpr(Pair(x,y))   -> ( List.append (pairExtender (Pair(x,y))) (extendList b) )
     | Sexpr(x)           -> ( List.append [ Sexpr(x) ] (extendList b) )
-    | any                -> raise X_syntax_error
+    | Void               -> ( extendList b )
+    
               )
 
 (*TESTED WITH INPUT ABOVE - WORKS *)
@@ -370,6 +372,14 @@ let labelCounter = ref 0 ;;
 let labelCounterInc() = labelCounter := !labelCounter + 1 ;;
 let labelCounterGet() = !labelCounter;;
 
+let rec address_in_const_table to_find consts =
+  match consts with
+  | [] -> raise X_syntax_error
+  | (elem , (address , str)) :: resConsts -> (
+        if (constsEqualizer to_find elem)
+        then address
+        else (address_in_const_table to_find resConsts) )
+  ;;
 
 
 let rec code_gen_maker consts fvars e =
@@ -382,7 +392,7 @@ let rec code_gen_maker consts fvars e =
 and code_genScanner consts fvars exp envLayer = 
   match exp with
   | Const'(sexpr)                             -> 
-            (const_genHelper sexpr envLayer)
+            (const_genHelper consts fvars sexpr envLayer)
   | Var'(VarParam(name,mino))                 -> 
             (varParam_genHelper mino envLayer)
   | Var'(VarBound(name,majo,mino))            -> 
@@ -421,8 +431,10 @@ and code_genScanner consts fvars exp envLayer =
   
 
 
-and const_genHelper sexpr envLayer =
-  "#t"
+and const_genHelper consts fvars sexpr envLayer =
+  let adrs = (address_in_const_table sexpr consts) in
+  (* "    mov rax, SOB_FALSE_ADDRESS"^ "\n"  *)
+  "   mov rax, const_tbl+" ^(string_of_int adrs)^ " \n" 
 
 
 and varParam_genHelper mino envLayer =
@@ -473,7 +485,7 @@ and if_genHelper consts fvars test dit dif envLayer =
   let ifLable = labelCounterGet() in
   (
   (code_genScanner consts fvars test envLayer)  ^ " \n" ^
-  "   cmp rax, SOB_FALSE"                       ^ " \n" ^
+  "   cmp rax, SOB_FALSE_ADDRESS"                       ^ " \n" ^
   "   je  Lelse" ^ (string_of_int ifLable)      ^ " \n" ^
   (code_genScanner consts fvars dit envLayer)   ^ " \n" ^
   "   jmp  Lexit" ^ (string_of_int ifLable)     ^ " \n" ^
@@ -630,8 +642,9 @@ and applic_genHelper consts fvars rator rands envLayer =
   "   mov r10, " ^(string_of_int nRands)        ^ " \n" ^(* r10 =nRands  *)
   "   push r10"                                 ^ " \n" ^(* push nRands  *)
   (code_genScanner consts fvars rator envLayer) ^ " \n" ^(* eval rator *)
-  "   cmp byte[rax], T_CLOSURE"                 ^ " \n" ^(* check if rator is closure*)
-  "   je ApplicError" ^ (string_of_int aLabel)  ^ " \n" ^(* error if no closure *)
+  "   mov sil, byte[rax]"                       ^ " \n" ^(* check if rator is closure*)
+  "   cmp sil, T_CLOSURE"                       ^ " \n" ^(* check if rator is closure*)
+  "   jne ApplicError" ^ (string_of_int aLabel)  ^ " \n" ^(* error if no closure *)
   
   "   CLOSURE_ENV r9, rax"                      ^ " \n" ^(* r9 = Env  *)
   "   push r9"                                  ^ " \n" ^(* push closure Env*)
@@ -666,7 +679,6 @@ and applicTP_genHelper consts fvars rator rands envLayer =
   
   (
 
-<<<<<<< HEAD
   (randsTPLoper)                                ^ " \n" ^(* eval rands and push *)
   "   mov r10, " ^(string_of_int nTPRands)      ^ " \n" ^(* r10 =nTPRands  *)
   "   push r10"                                 ^ " \n" ^(* push nTPRands  *)
@@ -739,8 +751,6 @@ and applicTP_genHelper consts fvars rator rands envLayer =
 
   
     
-=======
->>>>>>> 900d8fda7bd01c626ac64a4d476d3f1a11b11b02
 ;;
 
   let make_consts_tbl asts = const_table_maker asts ;;

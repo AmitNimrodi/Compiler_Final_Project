@@ -21,6 +21,7 @@
 	
 %define TYPE_SIZE 1
 %define WORD_SIZE 8
+%define WORD_BYTES 8
 	
 %define KB(n) n*1024
 %define MB(n) 1024*KB(n)

@@ -92,7 +92,7 @@ user_code_fragment:
    you may just add things to prims.s (which gets catenated with the epilogue variable).
    Whatever floats your boat. You just have to make sure all the required
    primitive procedures are implemented and included in the output assembly. *)
-let epilogue = "";;
+let epilogue = "\nleave \n  ret \n ";;
 
 (*exception X_missing_input_file;;
 
@@ -100,7 +100,7 @@ try
   let infile = Sys.argv.(1) in
   let code =  (file_to_string "stdlib.scm") ^ (file_to_string infile) in
    let asts = string_to_asts code in *)
-  let asts = string_to_asts "(1)" in
+  let asts = string_to_asts "((lambda () 1 ))" in
   let consts_tbl = Code_Gen.make_consts_tbl asts in
   let fvars_tbl = Code_Gen.make_fvars_tbl asts in
   let generate = Code_Gen.generate consts_tbl fvars_tbl in
