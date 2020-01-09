@@ -17,8 +17,9 @@ let primitive_names_to_labels =
    "string-ref", "string_ref"; "string-set!", "string_set"; "make-string", "make_string";
    "symbol->string", "symbol_to_string"; 
    "char->integer", "char_to_integer"; "integer->char", "integer_to_char"; "eq?", "is_eq";
-   "+", "bin_add"; "*", "bin_mul"; "-", "bin_sub"; "/", "bin_div"; "<", "bin_lt"; "=", "bin_equ"
-(* you can add yours here *)];;
+   "+", "bin_add"; "*", "bin_mul"; "-", "bin_sub"; "/", "bin_div"; "<", "bin_lt"; "=", "bin_equ";
+(* you can add yours here *)
+   "car", "bin_car"];;
 
 let make_prologue consts_tbl fvars_tbl =
   let make_primitive_closure (prim, label) =
@@ -92,7 +93,22 @@ user_code_fragment:
    you may just add things to prims.s (which gets catenated with the epilogue variable).
    Whatever floats your boat. You just have to make sure all the required
    primitive procedures are implemented and included in the output assembly. *)
-let epilogue = "\nleave \n  ret \n ";;
+let epilogue = (
+  "\nleave \n  ret \n "                         ^
+  "bin_car:"                               ^ " \n" ^(* car primitive *)
+  "   push rbp"                                 ^ " \n" ^(* save rbp  *)
+  "   mov rbp, rsp"                             ^ " \n" ^(* move pointer to rsp  *)
+  
+  "   mov rsi, PVAR(0)"                         ^ " \n" ^(* i=0  *)
+  "   mov rax, rsi"                             ^ " \n" ^(* i=0  *)
+  
+  
+  "\nleave \n  ret \n " 
+  
+  
+  );;
+  
+
 
 (*exception X_missing_input_file;;
 
@@ -100,7 +116,7 @@ try
   let infile = Sys.argv.(1) in
   let code =  (file_to_string "stdlib.scm") ^ (file_to_string infile) in
    let asts = string_to_asts code in *)
-  let asts = string_to_asts "((lambda () 1 ))" in
+  let asts = string_to_asts "(car (1.2))" in
   let consts_tbl = Code_Gen.make_consts_tbl asts in
   let fvars_tbl = Code_Gen.make_fvars_tbl asts in
   let generate = Code_Gen.generate consts_tbl fvars_tbl in
