@@ -381,6 +381,15 @@ let rec address_in_const_table to_find consts =
         else (address_in_const_table to_find resConsts) )
   ;;
 
+let rec address_in_fvar_table to_find fvars =
+  match fvars with
+  | [] -> raise X_syntax_error
+  | (str,address) :: resFvars -> (
+        if (str=to_find)
+        then address
+        else (address_in_fvar_table to_find resFvars) )
+  ;;
+
 
 let rec code_gen_maker consts fvars e =
   let somthing = (code_genScanner consts fvars e 0 ) in
@@ -394,33 +403,33 @@ and code_genScanner consts fvars exp envLayer =
   | Const'(sexpr)                             -> 
             (const_genHelper consts fvars sexpr envLayer)
   | Var'(VarParam(name,mino))                 -> 
-            (varParam_genHelper mino envLayer)
+            (varParam_genHelper consts fvars mino envLayer)
   | Var'(VarBound(name,majo,mino))            -> 
-            (varBound_genHelper majo mino envLayer)
+            (varBound_genHelper consts fvars majo mino envLayer)
   | Var'(VarFree(name))                       -> 
-            (varFree_genHelper name envLayer)
+            (varFree_genHelper consts fvars name envLayer)
   | Set'(Var'(VarParam(name,mino)), valu)     -> 
-            (setvarParam_genHelper mino valu envLayer)
+            (setvarParam_genHelper consts fvars mino valu envLayer)
   | Set'(Var'(VarBound(name,majo,mino)), valu)->
-            (setvarBound_genHelper majo mino valu envLayer)
+            (setvarBound_genHelper consts fvars majo mino valu envLayer)
   | Set'(Var'(VarFree(name)), valu)           -> 
-            (setvarFree_genHelper name valu envLayer)
+            (setvarFree_genHelper consts fvars name valu envLayer)
   | Seq'(listOfexprs)                         -> 
-            (seq_genHelper listOfexprs envLayer)
+            (seq_genHelper consts fvars listOfexprs envLayer)
   | Or'(listOfexprs)                          -> 
-            (or_genHelper listOfexprs envLayer)
+            (or_genHelper consts fvars listOfexprs envLayer)
   | If'(test,dit,dif)                         -> 
             (if_genHelper consts fvars test dit dif envLayer)
   | BoxGet'(head)                             -> 
-            (boxget_genHelper head envLayer)
+            (boxget_genHelper consts fvars head envLayer)
   | BoxSet'(head,valu)                        -> 
-            (boxset_genHelper head valu envLayer)
+            (boxset_genHelper consts fvars head valu envLayer)
   | LambdaSimple'(lambdaParams, bodyOfLambda) -> 
             (simple_genHelper consts fvars bodyOfLambda envLayer)
   | Applic'(rator, rands)                     -> 
             (applic_genHelper consts fvars rator rands envLayer)
   | LambdaOpt'(lambdaParams, vs, bodyOfLambda)-> 
-            (opt_genHelper lambdaParams vs bodyOfLambda envLayer)
+            (opt_genHelper consts fvars lambdaParams vs bodyOfLambda envLayer)
   | ApplicTP'(rator, rands)                   ->
             (applicTP_genHelper consts fvars rator rands envLayer)
   
@@ -436,35 +445,51 @@ and const_genHelper consts fvars sexpr envLayer =
   "   mov rax, const_tbl+" ^(string_of_int adrs)^ " \n" 
 
 
-and varParam_genHelper mino envLayer =
+and varParam_genHelper consts fvars mino envLayer =
+  "   mov rax, qword [rbp +8 * (4 +" ^(string_of_int mino) ^ ")] \n"
+
+
+and varBound_genHelper consts fvars majo mino envLayer =
+  let major = (string_of_int majo) in
+  let minor = (string_of_int mino) in   
+  "   mov rax, qword [rbp + 8 ∗ 2]  "                        ^ " \n" ^
+  "   mov rax, qword [rax + 8 ∗ "  ^ major ^ "]"             ^ " \n" ^
+  "   mov rax, qword [rax + 8 ∗ " ^ minor ^ "]"              ^ " \n"   
+  
+
+and varFree_genHelper consts fvars name envLayer =
+  let address = "fvar_tbl + " ^ (string_of_int (address_in_fvar_table name fvars)) in
+  "   mov rax, qword [" ^ address ^ "]"                      ^ " \n"  
+
+  
+and setvarParam_genHelper consts fvars mino valu envLayer =
+  let minor = (string_of_int mino) in  
+  (code_genScanner consts fvars valu envLayer)               ^ " \n" ^
+  "   mov qword [rbp + 8 ∗ (4 + "  ^ minor ^ ")], rax"       ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
+  "   mov rax, SOB_VOID_ADDRESS"                             ^ " \n"   
+
+
+and setvarBound_genHelper consts fvars majo mino valu envLayer =
+  let major = (string_of_int majo) in
+  let minor = (string_of_int mino) in   
+  (code_genScanner consts fvars valu envLayer)               ^ " \n" ^
+  "   mov rbx, qword [rbp + 8 ∗ 2]"                          ^ " \n" ^
+  "   mov rbx, qword [rbx + 8 ∗"  ^ major ^ "]"              ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
+  "   mov qword [rbx + 8 ∗" ^ minor ^ "], rax"               ^ " \n" ^
+  "   mov rax, SOB_VOID_ADDRESS"                             ^ " \n"  
+
+
+and setvarFree_genHelper consts fvars name valu envLayer =
+  let address = "fvar_tbl + " ^ (string_of_int (address_in_fvar_table name fvars)) in
+  (code_genScanner consts fvars valu envLayer)              ^ " \n" ^
+    "   mov qword [ " ^ address ^ "], rax"                  ^ " \n" ^
+    "   mov rax, SOB_VOID_ADDRESS"                          ^ " \n"  
+
+and seq_genHelper consts fvars listOfexprs envLayer =
   raise X_syntax_error
 
 
-and varBound_genHelper majo mino envLayer =
-  raise X_syntax_error
-
-
-and varFree_genHelper name envLayer =
-  raise X_syntax_error
-
-
-and setvarParam_genHelper mino valu envLayer =
-  raise X_syntax_error
-
-
-and setvarBound_genHelper majo mino valu envLayer =
-  raise X_syntax_error
-
-
-and setvarFree_genHelper name valu envLayer =
-  raise X_syntax_error
-
-
-and seq_genHelper listOfexprs envLayer =
-  raise X_syntax_error
-
-
-and or_genHelper listOfexprs envLayer =
+and or_genHelper consts fvars listOfexprs envLayer =
   raise X_syntax_error
 
 
@@ -494,11 +519,11 @@ and if_genHelper consts fvars test dit dif envLayer =
   )
   
 
-and boxget_genHelper head envLayer =
+and boxget_genHelper consts fvars head envLayer =
   raise X_syntax_error
 
 
-and boxset_genHelper head valu envLayer =
+and boxset_genHelper consts fvars head valu envLayer =
   raise X_syntax_error
 
 
@@ -665,7 +690,7 @@ and applic_genHelper consts fvars rator rands envLayer =
 
 
   
-and opt_genHelper lambdaParams vs bodyOfLambda envLayer =
+and opt_genHelper consts fvars lambdaParams vs bodyOfLambda envLayer =
   raise X_syntax_error
 
 
