@@ -192,7 +192,7 @@ and tupleMaker sexpr tuplesList = (* TODO: which strings should be inputted with
                                           (sexpr, (offset, "MAKE_LITERAL_CHAR(" ^ (Char.escaped valu) ^")"))
   | Sexpr(String(str))                 -> let len = (String.length str) in
                                           let offset = getAndInc((len + num_char_size)) in
-                                          (sexpr, (offset, "MAKE_LITERAL_STRING " ^ str))
+                                          (sexpr, (offset, "MAKE_LITERAL_STRING \"" ^ str^"\""))
   | Sexpr(Symbol(str))                 -> let offset = getAndInc(num_char_size) in
                                           (sexpr, (offset, "MAKE_LITERAL_SYMBOL(const_tbl+" ^ (symbolTupleMaker sexpr tuplesList) ^ ")"))
   | Sexpr(Pair(first,second))          -> (pairTupleMaker first second tuplesList)
@@ -284,7 +284,7 @@ let fixed_free_labels =
    "string?"; "procedure?"; "symbol?"; "string-length";
    "string-ref"; "string-set!"; "make-string"; "symbol->string"; 
    "char->integer"; "integer->char"; "eq?"; 
-   "+"; "*"; "-"; "/"; "<"; "="
+   "+"; "*"; "-"; "/"; "<"; "=";"car"
 (* you can add yours here *)];;
 
 
@@ -442,8 +442,7 @@ and code_genScanner consts fvars exp envLayer =
 
 and const_genHelper consts fvars sexpr envLayer =
   let adrs = (address_in_const_table sexpr consts) in
-  (* "    mov rax, SOB_FALSE_ADDRESS"^ "\n"  *)
-  "   mov rax, const_tbl+" ^ (string_of_int adrs) ^            " \n" 
+  "   mov rax, const_tbl+" ^(string_of_int adrs)^ " \n" 
 
 
 and varParam_genHelper consts fvars mino envLayer =
@@ -676,7 +675,7 @@ and applic_genHelper consts fvars rator rands envLayer =
   (code_genScanner consts fvars rator envLayer) ^ " \n" ^(* eval rator *)
   "   mov sil, byte[rax]"                       ^ " \n" ^(* check if rator is closure*)
   "   cmp sil, T_CLOSURE"                       ^ " \n" ^(* check if rator is closure*)
-  "   jne ApplicError" ^ (string_of_int aLabel)  ^ " \n" ^(* error if no closure *)
+  "   jne ApplicError" ^ (string_of_int aLabel) ^ " \n" ^(* error if no closure *)
   
   "   CLOSURE_ENV r9, rax"                      ^ " \n" ^(* r9 = Env  *)
   "   push r9"                                  ^ " \n" ^(* push closure Env*)
