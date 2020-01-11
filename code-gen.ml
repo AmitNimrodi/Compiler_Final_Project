@@ -417,7 +417,7 @@ and code_genScanner consts fvars exp envLayer =
   | Seq'(listOfexprs)                         -> 
             (seq_genHelper consts fvars listOfexprs envLayer)
   | Or'(listOfexprs)                          -> 
-            (or_genHelper consts fvars "" listOfexprs envLayer)
+            (or_genHelper consts fvars listOfexprs envLayer)
   | If'(test,dit,dif)                         -> 
             (if_genHelper consts fvars test dit dif envLayer)
   | BoxGet'(head)                             -> 
@@ -458,10 +458,16 @@ and varBound_genHelper consts fvars majo mino envLayer =
   
 
 and varFree_genHelper consts fvars name envLayer =
-  let address = "fvar_tbl+" ^ 
-        (string_of_int (address_in_fvar_table name fvars)) ^"*8" in
-  "   mov rax, qword [" ^ address ^ "]"                      ^ " \n"  
-
+ let address = "fvar_tbl+" ^  
+        (string_of_int (address_in_fvar_table name fvars)) ^
+         "*8" in
+  "    mov rax, qword[" ^ address ^ "]"      ^ " \n"    
+  
+  
+  (* "    add r15, fvar_tbl"                     ^ " \n" ^ 
+  "    mov r14, [r15]"                     ^ " \n" ^
+  "    mov rax, [r14]"                     ^ " \n"  *)
+  
   
 and setvarParam_genHelper consts fvars mino valu envLayer =
   let minor = (string_of_int mino) in  
@@ -489,19 +495,34 @@ and setvarFree_genHelper consts fvars name valu envLayer =
 
 
 and seq_genHelper consts fvars listOfexprs envLayer =
-  ( List.fold_left (fun acc ex -> acc ^ (code_genScanner consts fvars ex envLayer) ^ " \n") "" listOfExprs )
-
-
-and or_genHelper consts fvars acc listOfexprs envLayer =
   match listOfexprs with
-  | []     -> []
-  | [a]    -> ( acc ^ (code_genScanner consts fvars a envLayer)    ^ " \n" ^ "Lexit:  " ^ " \n")
-  | a :: b -> ( let str =
-                acc ^ (code_genScanner consts fvars a envLayer)                          ^ " \n" ^
-                "cmp rax, sob_false \n jne Lexit  "                                      ^ " \n" in
-                (or_genHelper consts fvars str b envLayer)
+  | [] -> ""
+  | a :: b ->( 
+    (code_genScanner consts fvars a envLayer)    ^ " \n" ^
+    (seq_genHelper consts fvars b envLayer)      ^ " \n" )
+  
+
+and or_genLooper consts fvars acc listOfexprs envLayer orLable =
+  match listOfexprs with
+  | []      -> acc
+  | a :: b  -> ( 
+    let str = ( acc ^ (code_genScanner consts fvars a envLayer)
+                                                  ^ " \n" ^
+    "   cmp rax, SOB_FALSE_ADDRESS"               ^ " \n" ^
+    "   jne Lorexit" ^ (string_of_int orLable)    ^ " \n" ) in
+    
+    (or_genLooper consts fvars str b envLayer orLable)
               )
 
+
+and or_genHelper consts fvars listOfexprs envLayer =
+  labelCounterInc();
+  let orLable = labelCounterGet() in
+  (
+  (or_genLooper consts fvars "" listOfexprs envLayer orLable)
+
+                                                  ^ " \n" ^
+  "Lorexit" ^ (string_of_int orLable) ^ ":"       ^ " \n" )
 (* 
     First, we get uniqe label, then we concat assembly string:
     eval test
@@ -517,7 +538,7 @@ and if_genHelper consts fvars test dit dif envLayer =
   let ifLable = labelCounterGet() in
   (
   (code_genScanner consts fvars test envLayer)  ^ " \n" ^
-  "   cmp rax, SOB_FALSE_ADDRESS"                       ^ " \n" ^
+  "   cmp rax, SOB_FALSE_ADDRESS"               ^ " \n" ^
   "   je  Lelse" ^ (string_of_int ifLable)      ^ " \n" ^
   (code_genScanner consts fvars dit envLayer)   ^ " \n" ^
   "   jmp  Lexit" ^ (string_of_int ifLable)     ^ " \n" ^

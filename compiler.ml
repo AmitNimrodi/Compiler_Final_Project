@@ -99,8 +99,61 @@ let epilogue = (
   "   push rbp"                                 ^ " \n" ^(* save rbp  *)
   "   mov rbp, rsp"                             ^ " \n" ^(* move pointer to rsp  *)
   
-  "   mov rsi, PVAR(0)"                         ^ " \n" ^(* i=0  *)
-  "   mov rax, rsi"                             ^ " \n" ^(* i=0  *)
+  "   mov rbx, PVAR(0)"                         ^ " \n" ^(* i=0  *)
+  "   CAR rax, rbx"                             ^ " \n" ^(* i=0  *)
+  
+  
+  "\nleave \n  ret \n " 
+  
+  
+  "bin_cdr:"                               ^ " \n" ^(* car primitive *)
+  "   push rbp"                                 ^ " \n" ^(* save rbp  *)
+  "   mov rbp, rsp"                             ^ " \n" ^(* move pointer to rsp  *)
+  
+  "   mov rbx, PVAR(0)"                         ^ " \n" ^(* i=0  *)
+  "   CDR rax, rbx"                             ^ " \n" ^(* i=0  *)
+  
+  
+  "\nleave \n  ret \n " 
+  
+  
+  "bin_cons:"                               ^ " \n" ^(* car primitive *)
+  "   push rbp"                                 ^ " \n" ^(* save rbp  *)
+  "   mov rbp, rsp"                             ^ " \n" ^(* move pointer to rsp  *)
+  
+  "   mov rbx, PVAR(0)"                         ^ " \n" ^(* i=0  *)
+  "   mov rcx, PVAR(1)"                         ^ " \n" ^(* i=0  *)
+  "   MAKE_PAIR rax, rbx, rcx"                             ^ " \n" ^(* i=0  *)
+  
+  
+  "\nleave \n  ret \n " 
+  
+  
+  "bin_set_car:"                               ^ " \n" ^(* car primitive *)
+  "   push rbp"                                 ^ " \n" ^(* save rbp  *)
+  "   mov rbp, rsp"                             ^ " \n" ^(* move pointer to rsp  *)
+  
+  "   mov rbx, PVAR(0)"                         ^ " \n" ^(* i=0  *)
+  "   mov rcx, PVAR(1)"                         ^ " \n" ^(* i=0  *)
+  "   add rbx, 1"                         ^ " \n" ^(* i=0  *)
+  "   mov [rbx], rcx"                         ^ " \n" ^(* i=0  *)
+  
+  "   mov rax, SOB_VOID_ADDRESS"                         ^ " \n" ^(* i=0  *)
+  
+  
+  "\nleave \n  ret \n " 
+  
+  
+  "bin_set_cdr:"                               ^ " \n" ^(* car primitive *)
+  "   push rbp"                                 ^ " \n" ^(* save rbp  *)
+  "   mov rbp, rsp"                             ^ " \n" ^(* move pointer to rsp  *)
+  
+  "   mov rbx, PVAR(0)"                         ^ " \n" ^(* i=0  *)
+  "   mov rcx, PVAR(1)"                         ^ " \n" ^(* i=0  *)
+  "   add rbx, 9"                         ^ " \n" ^(* i=0  *)
+  "   mov [rbx], rcx"                         ^ " \n" ^(* i=0  *)
+  
+  "   mov rax, SOB_VOID_ADDRESS"                         ^ " \n" ^(* i=0  *)
   
   
   "\nleave \n  ret \n " 
@@ -116,7 +169,7 @@ try
   let infile = Sys.argv.(1) in
   let code =  (file_to_string "stdlib.scm") ^ (file_to_string infile) in
    let asts = string_to_asts code in *)
-  let asts = string_to_asts "(car '(1 . 2))" in
+  let asts = string_to_asts "((lambda (x y) (+ x y)) 1 2)" in
   let consts_tbl = Code_Gen.make_consts_tbl asts in
   let fvars_tbl = Code_Gen.make_fvars_tbl asts in
   let generate = Code_Gen.generate consts_tbl fvars_tbl in
