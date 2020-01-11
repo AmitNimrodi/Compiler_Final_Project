@@ -458,7 +458,8 @@ and varBound_genHelper consts fvars majo mino envLayer =
   
 
 and varFree_genHelper consts fvars name envLayer =
-  let address = "fvar_tbl + " ^ (string_of_int (address_in_fvar_table name fvars)) in
+  let address = "fvar_tbl+" ^ 
+        (string_of_int (address_in_fvar_table name fvars)) ^"*8" in
   "   mov rax, qword [" ^ address ^ "]"                      ^ " \n"  
 
   
