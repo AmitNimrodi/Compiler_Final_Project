@@ -19,12 +19,15 @@ let primitive_names_to_labels =
    "char->integer", "char_to_integer"; "integer->char", "integer_to_char"; "eq?", "is_eq";
    "+", "bin_add"; "*", "bin_mul"; "-", "bin_sub"; "/", "bin_div"; "<", "bin_lt"; "=", "bin_equ";
 (* you can add yours here *)
-   "car", "bin_car"];;
+   "car", "bin_car"; "cdr", "bin_cdr"; "cons", "bin_cons";
+   "set-car!", "bin_set_car"; "set-cdr!", "bin_set_cdr"];;
 
 let make_prologue consts_tbl fvars_tbl =
   let make_primitive_closure (prim, label) =
+    (* Adapt the addressing here to your fvar addressing scheme:
+       This imlementation assumes fvars are offset from the base label fvar_tbl *)
 "    MAKE_CLOSURE(rax, SOB_NIL_ADDRESS, " ^ label  ^ ")
-    mov [" ^  (string_of_int (List.assoc prim fvars_tbl)) ^ "], rax" in
+    mov [fvar_tbl+8*" ^  (string_of_int (List.assoc prim fvars_tbl)) ^ "], rax" in
   let constant_bytes (c, (a, s)) = s in
 "
 ;;; All the macros and the scheme-object printing procedure
@@ -42,10 +45,10 @@ const_tbl:
 
 ;;; These macro definitions are required for the primitive
 ;;; definitions in the epilogue to work properly
-%define SOB_VOID_ADDRESS " ^ (string_of_int (fst (List.assoc Void consts_tbl))) ^ "
-%define SOB_NIL_ADDRESS " ^ (string_of_int (fst (List.assoc (Sexpr Nil) consts_tbl))) ^ "
-%define SOB_FALSE_ADDRESS " ^ (string_of_int (fst (List.assoc (Sexpr (Bool true)) consts_tbl))) ^ "
-%define SOB_TRUE_ADDRESS " ^ (string_of_int  (fst (List.assoc (Sexpr (Bool false)) consts_tbl))) ^ "
+%define SOB_VOID_ADDRESS const_tbl+" ^ (string_of_int (fst (List.assoc Void consts_tbl))) ^ "
+%define SOB_NIL_ADDRESS const_tbl+" ^ (string_of_int (fst (List.assoc (Sexpr Nil) consts_tbl))) ^ "
+%define SOB_FALSE_ADDRESS const_tbl+" ^ (string_of_int (fst (List.assoc (Sexpr (Bool false)) consts_tbl))) ^ "
+%define SOB_TRUE_ADDRESS const_tbl+" ^ (string_of_int  (fst (List.assoc (Sexpr (Bool true)) consts_tbl))) ^ "
 
 fvar_tbl:
 " ^
@@ -57,10 +60,9 @@ global main
 section .text
 main:
     push rbp
-    mov rbp,rsp
 
     ;; set up the heap
-    mov rdi, GB(4)
+    mov rdi, GB(1)
     call malloc
     mov [malloc_pointer], rax
 
@@ -73,6 +75,7 @@ main:
     push qword SOB_NIL_ADDRESS
     push qword T_UNDEFINED
     push rsp
+    mov rbp,rsp
 
     ;; Set up the primitive stdlib fvars:
     ;; Since the primtive procedures are defined in assembly,
@@ -93,7 +96,7 @@ user_code_fragment:
    you may just add things to prims.s (which gets catenated with the epilogue variable).
    Whatever floats your boat. You just have to make sure all the required
    primitive procedures are implemented and included in the output assembly. *)
-let epilogue = (
+   let epilogue = (
   "\nleave \n  ret \n "                         ^
   "bin_car:"                               ^ " \n" ^(* car primitive *)
   "   push rbp"                                 ^ " \n" ^(* save rbp  *)
@@ -103,7 +106,7 @@ let epilogue = (
   "   CAR rax, rbx"                             ^ " \n" ^(* i=0  *)
   
   
-  "\nleave \n  ret \n " 
+  "\nleave \n  ret \n " ^
   
   
   "bin_cdr:"                               ^ " \n" ^(* car primitive *)
@@ -114,7 +117,7 @@ let epilogue = (
   "   CDR rax, rbx"                             ^ " \n" ^(* i=0  *)
   
   
-  "\nleave \n  ret \n " 
+  "\nleave \n  ret \n " ^
   
   
   "bin_cons:"                               ^ " \n" ^(* car primitive *)
@@ -123,10 +126,10 @@ let epilogue = (
   
   "   mov rbx, PVAR(0)"                         ^ " \n" ^(* i=0  *)
   "   mov rcx, PVAR(1)"                         ^ " \n" ^(* i=0  *)
-  "   MAKE_PAIR rax, rbx, rcx"                             ^ " \n" ^(* i=0  *)
+  "   MAKE_PAIR( rax, rbx, rcx )"                             ^ " \n" ^(* i=0  *)
   
   
-  "\nleave \n  ret \n " 
+  "\nleave \n  ret \n " ^
   
   
   "bin_set_car:"                               ^ " \n" ^(* car primitive *)
@@ -141,7 +144,7 @@ let epilogue = (
   "   mov rax, SOB_VOID_ADDRESS"                         ^ " \n" ^(* i=0  *)
   
   
-  "\nleave \n  ret \n " 
+  "\nleave \n  ret \n " ^
   
   
   "bin_set_cdr:"                               ^ " \n" ^(* car primitive *)
@@ -169,7 +172,7 @@ try
   let infile = Sys.argv.(1) in
   let code =  (file_to_string "stdlib.scm") ^ (file_to_string infile) in
    let asts = string_to_asts code in *)
-  let asts = string_to_asts "((lambda (x y) (+ x y)) 1 2)" in
+  let asts = string_to_asts "(+ ((lambda (x y) (begin (set-car! y 3) (car y))) 1 '(1 2) ) 5)" in
   let consts_tbl = Code_Gen.make_consts_tbl asts in
   let fvars_tbl = Code_Gen.make_fvars_tbl asts in
   let generate = Code_Gen.generate consts_tbl fvars_tbl in

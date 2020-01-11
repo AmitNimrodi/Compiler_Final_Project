@@ -284,8 +284,9 @@ let fixed_free_labels =
    "string?"; "procedure?"; "symbol?"; "string-length";
    "string-ref"; "string-set!"; "make-string"; "symbol->string"; 
    "char->integer"; "integer->char"; "eq?"; 
-   "+"; "*"; "-"; "/"; "<"; "=";"car"
-(* you can add yours here *)];;
+   "+"; "*"; "-"; "/"; "<"; "=";
+(* you can add yours here *)
+   "car"; "cdr"; "cons"; "set-car!"; "set-cdr!" ];;
 
 
 
@@ -323,9 +324,9 @@ and freeScanner exp =
   | BoxSet'(name,valu) -> 
       (freeScanner valu)
   | Set'(vari, valu) ->
-      (freeScanner valu) (*   set is expr*expr, but we look at it as a var*expr   *)
+      ( List.append (freeScanner vari) (freeScanner valu) ) 
   | Def'(head, valu) ->
-      (freeScanner valu) (*   def is expr*expr, but we look at it as a var*expr   *)
+      ( List.append (freeScanner head) (freeScanner valu) ) 
   | LambdaSimple'(lambdaParams, bodyOfLambda) ->
       (freeScanner bodyOfLambda)
   | LambdaOpt'(lambdaParams,vs, bodyOfLambda) ->
@@ -424,6 +425,8 @@ and code_genScanner consts fvars exp envLayer =
             (boxget_genHelper consts fvars head envLayer)
   | BoxSet'(head,valu)                        -> 
             (boxset_genHelper consts fvars head valu envLayer)
+  | Def'(head, valu)                          ->  
+            (def_genHelper consts fvars head valu envLayer)
   | LambdaSimple'(lambdaParams, bodyOfLambda) -> 
             (simple_genHelper consts fvars bodyOfLambda envLayer)
   | Applic'(rator, rands)                     -> 
@@ -434,7 +437,6 @@ and code_genScanner consts fvars exp envLayer =
             (applicTP_genHelper consts fvars rator rands envLayer)
   
   
-  | Def'(head, valu)                          -> raise X_syntax_error
   | Box'(name)                                -> raise X_syntax_error
   | any                                       -> raise X_syntax_error
   
@@ -458,15 +460,11 @@ and varBound_genHelper consts fvars majo mino envLayer =
   
 
 and varFree_genHelper consts fvars name envLayer =
- let address = "fvar_tbl+" ^  
-        (string_of_int (address_in_fvar_table name fvars)) ^
-         "*8" in
+ let address = "fvar_tbl+" ^ "8*" ^ 
+        (string_of_int (address_in_fvar_table name fvars)) in
+        
   "    mov rax, qword[" ^ address ^ "]"      ^ " \n"    
   
-  
-  (* "    add r15, fvar_tbl"                     ^ " \n" ^ 
-  "    mov r14, [r15]"                     ^ " \n" ^
-  "    mov rax, [r14]"                     ^ " \n"  *)
   
   
 and setvarParam_genHelper consts fvars mino valu envLayer =
@@ -487,10 +485,12 @@ and setvarBound_genHelper consts fvars majo mino valu envLayer =
 
 
 and setvarFree_genHelper consts fvars name valu envLayer =
-  let address = "fvar_tbl + " ^ (string_of_int (address_in_fvar_table name fvars)) in
+  let address = "fvar_tbl+8*" ^ 
+    (string_of_int (address_in_fvar_table name fvars)) in
+
   (code_genScanner consts fvars valu envLayer)              ^ " \n" ^
-    "   mov qword [ " ^ address ^ "], rax"                  ^ " \n" ^
-    "   mov rax, SOB_VOID_ADDRESS"                          ^ " \n"  
+  "   mov qword [ " ^ address ^ "], rax"                    ^ " \n" ^
+  "   mov rax, SOB_VOID_ADDRESS"                            ^ " \n"  
 
 
 
@@ -556,6 +556,20 @@ and boxset_genHelper consts fvars head valu envLayer =
   raise X_syntax_error
 
 
+
+
+and def_genHelper consts fvars head valu envLayer =
+  match head with
+  | Var'(VarFree(name)) -> (
+  (code_genScanner consts fvars valu envLayer)  ^ " \n" ^
+  
+  "     mov [fvar_tbl+8*" ^  
+  (string_of_int (List.assoc name fvars)) 
+                          ^ "], rax"            ^ " \n" ^
+  "   mov rax, SOB_VOID_ADDRESS"                ^ " \n"  
+
+  )
+  | any -> raise X_syntax_error
 
 (* 
     First, we get uniqe label, then we concat assembly string:
