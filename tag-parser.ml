@@ -103,7 +103,8 @@ and p_pairExpr head tail =
   (* | Pair(a,b), Nil ->  p_expr head *)
   | Pair(a,b), Nil ->  Applic(p_expr head, [])
   | Pair(a,b), _ ->  Applic(p_expr head,p_pairExprToList tail)
-  | any -> Seq(p_pairExprToList (Pair(head,tail)))
+  | any -> Applic(p_expr head,p_pairExprToList tail)
+  (* Seq(p_pairExprToList (Pair(head,tail))) *)
 
 
 
