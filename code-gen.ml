@@ -462,8 +462,7 @@ and varBound_genHelper consts fvars majo mino envLayer =
 and varFree_genHelper consts fvars name envLayer =
  let address = "fvar_tbl+" ^ "8*" ^ 
         (string_of_int (address_in_fvar_table name fvars)) in
-        
-  "    mov rax, qword[" ^ address ^ "]"      ^ " \n"    
+  "    mov rax, qword[" ^ address ^ "]"                      ^ " \n"    
   
   
   
@@ -487,7 +486,6 @@ and setvarBound_genHelper consts fvars majo mino valu envLayer =
 and setvarFree_genHelper consts fvars name valu envLayer =
   let address = "fvar_tbl+8*" ^ 
     (string_of_int (address_in_fvar_table name fvars)) in
-
   (code_genScanner consts fvars valu envLayer)              ^ " \n" ^
   "   mov qword [ " ^ address ^ "], rax"                    ^ " \n" ^
   "   mov rax, SOB_VOID_ADDRESS"                            ^ " \n"  
@@ -498,8 +496,8 @@ and seq_genHelper consts fvars listOfexprs envLayer =
   match listOfexprs with
   | [] -> ""
   | a :: b ->( 
-    (code_genScanner consts fvars a envLayer)    ^ " \n" ^
-    (seq_genHelper consts fvars b envLayer)      ^ " \n" )
+    (code_genScanner consts fvars a envLayer)             ^ " \n" ^
+    (seq_genHelper consts fvars b envLayer)               ^ " \n" )
   
 
 and or_genLooper consts fvars acc listOfexprs envLayer orLable =
@@ -510,7 +508,6 @@ and or_genLooper consts fvars acc listOfexprs envLayer orLable =
                                                   ^ " \n" ^
     "   cmp rax, SOB_FALSE_ADDRESS"               ^ " \n" ^
     "   jne Lorexit" ^ (string_of_int orLable)    ^ " \n" ) in
-    
     (or_genLooper consts fvars str b envLayer orLable)
               )
 
@@ -520,7 +517,6 @@ and or_genHelper consts fvars listOfexprs envLayer =
   let orLable = labelCounterGet() in
   (
   (or_genLooper consts fvars "" listOfexprs envLayer orLable)
-
                                                   ^ " \n" ^
   "Lorexit" ^ (string_of_int orLable) ^ ":"       ^ " \n" )
 (* 
@@ -547,16 +543,20 @@ and if_genHelper consts fvars test dit dif envLayer =
   "Lexit" ^ (string_of_int ifLable) ^ ":"       ^ " \n" 
   )
   
-
+  
 and boxget_genHelper consts fvars head envLayer =
-  raise X_syntax_error
+  (code_genScanner consts fvars head envLayer) ^ " \n" ^
+  "mov rax, qword [rax]"                       ^ " \n"
 
 
+  
+  
 and boxset_genHelper consts fvars head valu envLayer =
-  raise X_syntax_error
-
-
-
+  (code_genScanner consts fvars valu envLayer) ^ " \n " ^
+  "push rax"                                   ^ " \n " ^
+  (code_genScanner consts fvars head envLayer) ^ " \n " ^
+  "pop qword [rax]"                            ^ " \n " ^
+  "mov rax, sob_void"                          ^ " \n " 
 
 and def_genHelper consts fvars head valu envLayer =
   match head with
