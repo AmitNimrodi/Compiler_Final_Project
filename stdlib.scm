@@ -11,20 +11,58 @@
 				   (apply map f (cdr l) (map-loop cdr ls))))))))
       map-loop)))
 
+;(fold-left - 0 '(1 5 10)) ---> -16
 (define fold-left
-  #;(Add your implementation here
-     Note: The file won't compile like this, beacuase your tag-parser requires define to have a second expression.
-     This is on purpose, so you don't compile the library without completing this implementation by mistake.))
+  (let ((null? null?)
+        (car car) (cdr cdr)
+        (apply apply))
+    (letrec ((fold-left-loop (lambda (f acc l)
+                              (if (null? l)
+                                  acc
+                                  (if (pair? l)
+                                      (fold-left-loop f (apply f acc `(,(car l))) (cdr l) )
+                                      (fold-left-loop f (apply f acc `(,l)) '() )
+                                      )))))
+    fold-left-loop)))
 
+;(fold-right - 0 '(1 5 10)) ---> 6
 (define fold-right
-  #;(Add your implementation here
-     Note: The file won't compile like this, beacuase your tag-parser requires define to have a second expression.
-     This is on purpose, so you don't compile the library without completing this implementation by mistake.))
+  (let ((null? null?)
+        (car car) (cdr cdr)
+        (apply apply))
+    (letrec ((fold-right-loop (lambda (f acc l)
+                            (if (null? l)
+                                acc
+                                (if (pair? l)
+                                    (fold-right-loop f (apply f (car l) `(,acc)) (cdr l))
+                                    (fold-right-loop f (apply f l `(,acc)) '())
+                                 )))))
+    fold-right-loop)))
 
+;;tests:
+;(cons* '()) ---> ()
+;(cons* '(a b)) ---> (a b)
+;(cons* 'a 'b 'c) ---> (a b . c)
+;(cons* 'a 'b '(c d)) ---> (a b c d)
 (define cons*
-  #;(Add your implementation here
-     Note: The file won't compile like this, beacuase your tag-parser requires define to have a second expression.
-     This is on purpose, so you don't compile the library without completing this implementation by mistake.))
+  (let ((null? null?)
+        (car car) (cdr cdr)
+        (apply apply))
+    (letrec ((cons*-loop (lambda (el . ls)
+                           (if (null? el)
+                               '()
+                               (if (null? ls)
+                                   el
+                                   (fold-right
+                                      (lambda (x y)
+                                        (if (pair? y)
+                                            (append x y)
+                                            (if (null? y)
+                                                x
+                                            (append `(,y) x))))
+                                      '() (append ls el)))))))
+             cons*-loop)))
+
 
 (define append
   (let ((null? null?)
@@ -97,7 +135,7 @@
 	(null? null?))
     (lambda (x . y)
       (if (null? y)
-	  (/ 0 x)
+	  (/ 1 x)
 	  (/ x (apply * y))))))
 
 (define =
