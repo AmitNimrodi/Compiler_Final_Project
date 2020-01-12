@@ -421,6 +421,8 @@ and code_genScanner consts fvars exp envLayer =
             (or_genHelper consts fvars listOfexprs envLayer)
   | If'(test,dit,dif)                         -> 
             (if_genHelper consts fvars test dit dif envLayer)
+  | Box'(VarParam(name,mino))                                ->
+            (box_genHelper consts fvars name mino envLayer)
   | BoxGet'(head)                             -> 
             (boxget_genHelper consts fvars head envLayer)
   | BoxSet'(head,valu)                        -> 
@@ -435,9 +437,6 @@ and code_genScanner consts fvars exp envLayer =
             (opt_genHelper consts fvars lambdaParams vs bodyOfLambda envLayer)
   | ApplicTP'(rator, rands)                   ->
             (applicTP_genHelper consts fvars rator rands envLayer)
-  
-  
-  | Box'(name)                                -> raise X_syntax_error
   | any                                       -> raise X_syntax_error
   
 
@@ -547,20 +546,24 @@ and if_genHelper consts fvars test dit dif envLayer =
   "Lexit" ^ (string_of_int ifLable) ^ ":"       ^ " \n" 
   )
   
-  
+and box_genHelper consts fvars name mino envLayer =
+  "mov rax, 8"                                  ^ " \n" ^
+  "MALLOC rax,rax"                              ^ " \n" ^
+  "mov r9, PVAR(" ^ (string_of_int mino) ^ ") " ^ " \n" ^
+  "mov qword[rax], r9"                          ^ " \n"
+
 and boxget_genHelper consts fvars head envLayer =
-  (code_genScanner consts fvars (Var'(head)) envLayer) ^ " \n" ^
+  (code_genScanner consts fvars (Var'(head)) envLayer)
+                                               ^ " \n" ^
   "mov rax, qword [rax]"                       ^ " \n"
-
-
   
-  
+
 and boxset_genHelper consts fvars head valu envLayer =
   (code_genScanner consts fvars valu envLayer) ^ " \n " ^
   "push rax"                                   ^ " \n " ^
   (code_genScanner consts fvars (Var'(head)) envLayer) ^ " \n " ^
   "pop qword [rax]"                            ^ " \n " ^
-  "mov rax, sob_void"                          ^ " \n " 
+  "mov rax, SOB_VOID_ADDRESS"                          ^ " \n " 
 
 and def_genHelper consts fvars head valu envLayer =
   match head with
