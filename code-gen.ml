@@ -503,6 +503,10 @@ and seq_genHelper consts fvars listOfexprs envLayer =
 and or_genLooper consts fvars acc listOfexprs envLayer orLable =
   match listOfexprs with
   | []      -> acc
+  | a :: [] -> ( 
+    acc ^ (code_genScanner consts fvars a envLayer)
+                                                  ^ " \n"
+    )
   | a :: b  -> ( 
     let str = ( acc ^ (code_genScanner consts fvars a envLayer)
                                                   ^ " \n" ^
@@ -745,62 +749,62 @@ and applicTP_genHelper consts fvars rator rands envLayer =
   let randsTPLoper = (applic_genLoper consts fvars (List.rev rands) envLayer) in
   
   (
-
+  
+  "   push MAGIC"                               ^ " \n" ^(* push MAGIC  *)
   (randsTPLoper)                                ^ " \n" ^(* eval rands and push *)
   "   mov r10, " ^(string_of_int nTPRands)      ^ " \n" ^(* r10 =nTPRands  *)
   "   push r10"                                 ^ " \n" ^(* push nTPRands  *)
   (code_genScanner consts fvars rator envLayer) ^ " \n" ^(* eval rator *)
-  "   cmp byte[rax], T_CLOSURE"                 ^ " \n" ^(* check if rator is closure*)
-  "   je ApplicError" ^ (string_of_int aTPLabel)^ " \n" ^(* error if no closure *)
+  "   mov sil, byte[rax]"                       ^ " \n" ^(* check if rator is closure*)
+  "   cmp sil, T_CLOSURE"                       ^ " \n" ^(* check if rator is closure*)
+  (* "   je ApplicError" ^ (string_of_int aTPLabel)^ " \n" ^error if no closure *)
   
   "   CLOSURE_ENV r9, rax"                      ^ " \n" ^(* r9 = Env  *)
   "   push r9"                                  ^ " \n" ^(* push closure Env*)
+  "   CLOSURE_CODE r8, rax"                     ^ " \n" ^(* r9 = code  *)
   
   (*
   push rbp+8 and move pointers to prepare loop
   *)
   "   mov r10, qword[rbp+ 8*1 ]"                ^ " \n" ^(* r10 =oldRetAdress  *)
-  "   push r10"                                 ^ " \n" ^(* push oldRetAdress  *)
-  
   "   mov r15, qword[rbp+ 8*3 ]"                ^ " \n" ^(* r15 =nTPRands  *)
+  "   mov r14, qword[rsp+ 8*1 ]"                ^ " \n" ^(* r14 =nTPRands  *)
+  "   mov r13, qword[rbp]"                      ^ " \n" ^(* save old rbp  *)
+  
+  
   "   add r15, 4"                               ^ " \n" ^(* r15 =nTPRands+4  *)
   "   shl r15, 3"                               ^ " \n" ^(* r15 =(nTPRands+4)*8  *)
-  
-  "   mov r11, r15"                             ^ " \n" ^(* r11 =(nTPRands+4)*8  *)
-  "   add r11, rbp"                             ^ " \n" ^(* r11 =(nTPRands+4)*8+rbp  *)
+  "   add r15, rbp"                             ^ " \n" ^(* r11 =(nTPRands+4)*8+rbp  *)
   
   
-  "   mov r14, qword[rsp+ 8*1 ]"                ^ " \n" ^(* r14 =nTPRands  *)
   "   add r14, 2"                               ^ " \n" ^(* r14 =nTPRands+2  *)
   "   shl r14, 3"                               ^ " \n" ^(* r14 =(nTPRands+2)*8  *)
+  "   add r14, rsp"                             ^ " \n" ^(* r10 =(nTPRands+2)*8+rsp  *)
   
-  "   mov r12, r14"                             ^ " \n" ^(* r12 =(nTPRands+2)*8  *)
-  "   add r12, rsp"                             ^ " \n" ^(* r10 =(nTPRands+2)*8+rsp  *)
-  
-  "   mov r13, qword[rbp]"                      ^ " \n" ^(* save old rbp  *)
   
   (*
   loop with pointers to fix stack
   *)
-
   "ApplicTPLoop" ^(string_of_int aTPLabel) ^ ":"^ " \n" ^
-  "   cmp r12, rsp"                             ^ " \n" ^(* r10 =(nTPRands+2)*8+rsp  *)
+  "   cmp r14, rsp"                             ^ " \n" ^(* r10 =(nTPRands+2)*8+rsp  *)
   "   je ApplicTPEnd" ^ (string_of_int aTPLabel)^ " \n" ^(* error if no closure *)
-  "   mov r10, qword[r12]"                      ^ " \n" ^(* r10 =oldRetAdress  *)
-  "   mov qword[r11], r10"                      ^ " \n" ^(* r10 =oldRetAdress  *)
-  "   sub r12, 8"                               ^ " \n" ^(* r10 =oldRetAdress  *)
-  "   sub r11, 8"                               ^ " \n" ^(* r10 =oldRetAdress  *)
+  "   mov r11, qword[r14]"                      ^ " \n" ^(* r10 =oldRetAdress  *)
+  "   mov qword[r15], r11"                      ^ " \n" ^(* r10 =oldRetAdress  *)
+  "   sub r14, 8"                               ^ " \n" ^(* r10 =oldRetAdress  *)
+  "   sub r15, 8"                               ^ " \n" ^(* r10 =oldRetAdress  *)
   "   jmp ApplicTPLoop"^(string_of_int aTPLabel)^ " \n" ^(* error if no closure *)
   
   "ApplicTPEnd" ^(string_of_int aTPLabel) ^ ":" ^ " \n" ^
-  "   mov r10, qword[r12]"                      ^ " \n" ^(* r10 =oldRetAdress  *)
-  "   mov qword[r11], r10"                      ^ " \n" ^(* r10 =oldRetAdress  *)
+  "   mov r11, qword[r14]"                      ^ " \n" ^(* r10 =oldRetAdress  *)
+  "   mov qword[r15], r11"                      ^ " \n" ^(* r10 =oldRetAdress  *)
   "   mov rbp, r13"                             ^ " \n" ^(* r10 =oldRetAdress  *)
-  "   mov rsp, r11"                             ^ " \n" ^(* r10 =oldRetAdress  *)
+  "   mov rsp, r15"                             ^ " \n" ^(* r10 =oldRetAdress  *)
   
   
-  "   CLOSURE_CODE r8, rax"                     ^ " \n" ^(* r9 = code  *)
+  "   push r10"                                 ^ " \n" ^(* push oldRetAdress  *)
   "   call r8"                                  ^ " \n" ^(* call closure code*)
+  
+  
   (*
   upon return, pop env and args,
   we notice args can have different length after call so we
@@ -811,7 +815,8 @@ and applicTP_genHelper consts fvars rator rands envLayer =
   "ApplicError"  ^(string_of_int aTPLabel) ^ ":"^ " \n" ^
   "   pop rbx"                                  ^ " \n" ^(* pop nTPRands count *)
   "   shl rbx, 3"                               ^ " \n" ^(* nTPRands*8 *)
-  "   add rsp, rbx"                             ^ " \n" (* pop nTPRands *)
+  "   add rsp, rbx"                             ^ " \n" ^(* pop nTPRands *)
+  "   add rsp, 8*1"                             ^ " \n"  (* pop MAGIC *)
   
   )
 
