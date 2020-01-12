@@ -485,7 +485,7 @@ and setvarBound_genHelper consts fvars majo mino valu envLayer =
 
 and setvarFree_genHelper consts fvars name valu envLayer =
   let address = "fvar_tbl+8*" ^ 
-    (string_of_int (address_in_fvar_table name fvars)) in
+  (string_of_int (address_in_fvar_table name fvars)) in
   (code_genScanner consts fvars valu envLayer)              ^ " \n" ^
   "   mov qword [ " ^ address ^ "], rax"                    ^ " \n" ^
   "   mov rax, SOB_VOID_ADDRESS"                            ^ " \n"  
@@ -549,7 +549,7 @@ and if_genHelper consts fvars test dit dif envLayer =
   
   
 and boxget_genHelper consts fvars head envLayer =
-  (code_genScanner consts fvars head envLayer) ^ " \n" ^
+  (code_genScanner consts fvars (Var'(head)) envLayer) ^ " \n" ^
   "mov rax, qword [rax]"                       ^ " \n"
 
 
@@ -558,7 +558,7 @@ and boxget_genHelper consts fvars head envLayer =
 and boxset_genHelper consts fvars head valu envLayer =
   (code_genScanner consts fvars valu envLayer) ^ " \n " ^
   "push rax"                                   ^ " \n " ^
-  (code_genScanner consts fvars head envLayer) ^ " \n " ^
+  (code_genScanner consts fvars (Var'(head)) envLayer) ^ " \n " ^
   "pop qword [rax]"                            ^ " \n " ^
   "mov rax, sob_void"                          ^ " \n " 
 
