@@ -421,7 +421,7 @@ and code_genScanner consts fvars exp envLayer =
             (or_genHelper consts fvars listOfexprs envLayer)
   | If'(test,dit,dif)                         -> 
             (if_genHelper consts fvars test dit dif envLayer)
-  | Box'(VarParam(name,mino))                                ->
+  | Box'(VarParam(name,mino))                 ->
             (box_genHelper consts fvars name mino envLayer)
   | BoxGet'(head)                             -> 
             (boxget_genHelper consts fvars head envLayer)
@@ -443,51 +443,71 @@ and code_genScanner consts fvars exp envLayer =
 
 and const_genHelper consts fvars sexpr envLayer =
   let adrs = (address_in_const_table sexpr consts) in
-  "   mov rax, const_tbl+" ^(string_of_int adrs)^ " \n" 
+  "   mov rax, const_tbl+" ^(string_of_int adrs)                  ^ " \n" 
 
 
 and varParam_genHelper consts fvars mino envLayer =
-  "   mov rax, qword [rbp +8 * (4 +" ^(string_of_int mino) ^ ")] \n"
-
+  let minor = (string_of_int mino) in   
+  "   mov rax, qword[rbp+8*(4+" ^ minor ^ ")]"                    ^ " \n" 
+  
 
 and varBound_genHelper consts fvars majo mino envLayer =
-  let major = (string_of_int majo) in
-  let minor = (string_of_int mino) in   
-  "   mov rax, qword [rbp + 8 ∗ 2]  "                        ^ " \n" ^
-  "   mov rax, qword [rax + 8 ∗ "  ^ major ^ "]"             ^ " \n" ^
-  "   mov rax, qword [rax + 8 ∗ " ^ minor ^ "]"              ^ " \n"   
+let minor = (string_of_int mino) in   
+let major = (string_of_int majo) in   
+"   mov rax, qword[rbp+8*2]"                                      ^ " \n" ^
+"   mov rax, qword[rax+8*"^ major ^ "]"                           ^ " \n" ^
+"   mov rax, qword[rax+8*"^ minor ^ "]"                           ^ " \n" 
   
+
 
 and varFree_genHelper consts fvars name envLayer =
  let address = "fvar_tbl+" ^ "8*" ^ 
         (string_of_int (address_in_fvar_table name fvars)) in
-  "    mov rax, qword[" ^ address ^ "]"                      ^ " \n"    
+  "    mov rax, qword[" ^ address ^ "]"                           ^ " \n"    
   
   
   
 and setvarParam_genHelper consts fvars mino valu envLayer =
   let minor = (string_of_int mino) in  
-  (code_genScanner consts fvars valu envLayer)               ^ " \n" ^
-  "   mov qword [rbp + 8 ∗ (4 + "  ^ minor ^ ")], rax"       ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
-  "   mov rax, SOB_VOID_ADDRESS"                             ^ " \n"   
+  (code_genScanner consts fvars valu envLayer)                    ^ " \n" ^
+  "   mov r15, " ^ minor                                          ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
+  "   add r15, 4"                                                 ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
+  "   shl r15, 3"                                                 ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
+  "   add r15, rbp"                                               ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
+  "   mov qword[r15], rax"                                        ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
+  "   mov rax, SOB_VOID_ADDRESS"                                  ^ " \n"   
 
 
 and setvarBound_genHelper consts fvars majo mino valu envLayer =
   let major = (string_of_int majo) in
   let minor = (string_of_int mino) in   
-  (code_genScanner consts fvars valu envLayer)               ^ " \n" ^
-  "   mov rbx, qword [rbp + 8 ∗ 2]"                          ^ " \n" ^
-  "   mov rbx, qword [rbx + 8 ∗"  ^ major ^ "]"              ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
-  "   mov qword [rbx + 8 ∗" ^ minor ^ "], rax"               ^ " \n" ^
-  "   mov rax, SOB_VOID_ADDRESS"                             ^ " \n"  
+  (code_genScanner consts fvars valu envLayer)                    ^ " \n" ^
+  "   mov r15, 2"                                                 ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
+  "   shl r15, 3"                                                 ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
+  "   add r15, rbp"                                               ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
+  "   mov rbx, qword[r15]"                                        ^ " \n" ^
+  
+  "   mov r15, " ^ major                                          ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
+  "   shl r15, 3"                                                 ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
+  "   add r15, rbx"                                               ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
+  "   mov rbx, qword[r15]"                                        ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
+  
+  "   mov r15, " ^ minor                                          ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
+  "   shl r15, 3"                                                 ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
+  "   add r15, rbx"                                               ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
+  "   mov qword[r15], rax"                                        ^ " \n" ^
+  
+  "   mov rax, SOB_VOID_ADDRESS"                                  ^ " \n"  
 
+  
 
 and setvarFree_genHelper consts fvars name valu envLayer =
   let address = "fvar_tbl+8*" ^ 
   (string_of_int (address_in_fvar_table name fvars)) in
-  (code_genScanner consts fvars valu envLayer)              ^ " \n" ^
-  "   mov qword [ " ^ address ^ "], rax"                    ^ " \n" ^
-  "   mov rax, SOB_VOID_ADDRESS"                            ^ " \n"  
+  (code_genScanner consts fvars valu envLayer)                    ^ " \n" ^
+  "   mov qword[" ^ address ^ "], rax"                            ^ " \n" ^
+  "   mov rax, SOB_VOID_ADDRESS"                                  ^ " \n"  
+
 
 
 
@@ -495,24 +515,26 @@ and seq_genHelper consts fvars listOfexprs envLayer =
   match listOfexprs with
   | [] -> ""
   | a :: b ->( 
-    (code_genScanner consts fvars a envLayer)             ^ " \n" ^
-    (seq_genHelper consts fvars b envLayer)               ^ " \n" )
+    (code_genScanner consts fvars a envLayer)                     ^ " \n" ^
+    (seq_genHelper consts fvars b envLayer)                       ^ " \n" )
   
+
 
 and or_genLooper consts fvars acc listOfexprs envLayer orLable =
   match listOfexprs with
   | []      -> acc
   | a :: [] -> ( 
     acc ^ (code_genScanner consts fvars a envLayer)
-                                                  ^ " \n"
+                                                                  ^ " \n"
     )
   | a :: b  -> ( 
     let str = ( acc ^ (code_genScanner consts fvars a envLayer)
-                                                  ^ " \n" ^
-    "   cmp rax, SOB_FALSE_ADDRESS"               ^ " \n" ^
-    "   jne Lorexit" ^ (string_of_int orLable)    ^ " \n" ) in
+                                                                  ^ " \n" ^
+    "   cmp rax, SOB_FALSE_ADDRESS"                               ^ " \n" ^
+    "   jne Lorexit" ^ (string_of_int orLable)                    ^ " \n" ) in
     (or_genLooper consts fvars str b envLayer orLable)
               )
+
 
 
 and or_genHelper consts fvars listOfexprs envLayer =
@@ -520,9 +542,12 @@ and or_genHelper consts fvars listOfexprs envLayer =
   let orLable = labelCounterGet() in
   (
   (or_genLooper consts fvars "" listOfexprs envLayer orLable)
-                                                  ^ " \n" ^
-  "Lorexit" ^ (string_of_int orLable) ^ ":"       ^ " \n" )
-(* 
+                                                                  ^ " \n" ^
+  "Lorexit" ^ (string_of_int orLable) ^ ":"                       ^ " \n" )
+
+
+
+  (* 
     First, we get uniqe label, then we concat assembly string:
     eval test
     cmp to false to see if jmp to else_label
@@ -532,48 +557,58 @@ and or_genHelper consts fvars listOfexprs envLayer =
     eval dif
     exit_label
 *)
+
+
 and if_genHelper consts fvars test dit dif envLayer =
   labelCounterInc();
   let ifLable = labelCounterGet() in
   (
-  (code_genScanner consts fvars test envLayer)  ^ " \n" ^
-  "   cmp rax, SOB_FALSE_ADDRESS"               ^ " \n" ^
-  "   je  Lelse" ^ (string_of_int ifLable)      ^ " \n" ^
-  (code_genScanner consts fvars dit envLayer)   ^ " \n" ^
-  "   jmp  Lexit" ^ (string_of_int ifLable)     ^ " \n" ^
-  "Lelse" ^ (string_of_int ifLable) ^ ":"       ^ " \n" ^
-  (code_genScanner consts fvars dif envLayer)   ^ " \n" ^
-  "Lexit" ^ (string_of_int ifLable) ^ ":"       ^ " \n" 
+  (code_genScanner consts fvars test envLayer)                    ^ " \n" ^
+  "   cmp rax, SOB_FALSE_ADDRESS"                                 ^ " \n" ^
+  "   je  Lelse" ^ (string_of_int ifLable)                        ^ " \n" ^
+  (code_genScanner consts fvars dit envLayer)                     ^ " \n" ^
+  "   jmp  Lexit" ^ (string_of_int ifLable)                       ^ " \n" ^
+  "Lelse" ^ (string_of_int ifLable) ^ ":"                         ^ " \n" ^
+  (code_genScanner consts fvars dif envLayer)                     ^ " \n" ^
+  "Lexit" ^ (string_of_int ifLable) ^ ":"                         ^ " \n" 
   )
   
+
+
 and box_genHelper consts fvars name mino envLayer =
-  "mov rax, 8"                                  ^ " \n" ^
-  "MALLOC rax,rax"                              ^ " \n" ^
-  "mov r9, PVAR(" ^ (string_of_int mino) ^ ") " ^ " \n" ^
-  "mov qword[rax], r9"                          ^ " \n"
+  "mov rax, 8"                                                    ^ " \n" ^
+  "MALLOC rax,rax"                                                ^ " \n" ^
+  "mov r9, PVAR(" ^ (string_of_int mino) ^ ") "                   ^ " \n" ^
+  "mov qword[rax], r9"                                            ^ " \n"
+
+
 
 and boxget_genHelper consts fvars head envLayer =
   (code_genScanner consts fvars (Var'(head)) envLayer)
-                                               ^ " \n" ^
-  "mov rax, qword [rax]"                       ^ " \n"
+                                                                  ^ " \n" ^
+  "mov rax, qword [rax]"                                          ^ " \n"
   
 
+
+
 and boxset_genHelper consts fvars head valu envLayer =
-  (code_genScanner consts fvars valu envLayer) ^ " \n " ^
-  "push rax"                                   ^ " \n " ^
-  (code_genScanner consts fvars (Var'(head)) envLayer) ^ " \n " ^
-  "pop qword [rax]"                            ^ " \n " ^
-  "mov rax, SOB_VOID_ADDRESS"                          ^ " \n " 
+  (code_genScanner consts fvars valu envLayer)                    ^ " \n " ^
+  "push rax"                                                      ^ " \n " ^
+  (code_genScanner consts fvars (Var'(head)) envLayer)            ^ " \n " ^
+  "pop qword [rax]"                                               ^ " \n " ^
+  "mov rax, SOB_VOID_ADDRESS"                                     ^ " \n " 
+
+
 
 and def_genHelper consts fvars head valu envLayer =
   match head with
   | Var'(VarFree(name)) -> (
-  (code_genScanner consts fvars valu envLayer)  ^ " \n" ^
+  (code_genScanner consts fvars valu envLayer)                    ^ " \n" ^
   
   "     mov [fvar_tbl+8*" ^  
   (string_of_int (List.assoc name fvars)) 
-                          ^ "], rax"            ^ " \n" ^
-  "   mov rax, SOB_VOID_ADDRESS"                ^ " \n"  
+                          ^ "], rax"                              ^ " \n" ^
+  "   mov rax, SOB_VOID_ADDRESS"                                  ^ " \n"  
 
   )
   | any -> raise X_syntax_error
@@ -596,9 +631,9 @@ and simple_genHelper consts fvars bodyOfLambda envLayer =
   let sLabel = labelCounterGet() in
   (
 
-  "   mov r10, " ^ (string_of_int(envLayer+1))  ^ " \n" ^
-  "   shl r10, 3"                               ^ " \n" ^
-  "   MALLOC r10, r10"                          ^ " \n" ^(* ExtEnv malloced  *)
+  "   mov r10, " ^ (string_of_int(envLayer+1))                    ^ " \n" ^
+  "   shl r10, 3"                                                 ^ " \n" ^
+  "   MALLOC r10, r10"                                            ^ " \n" ^(* ExtEnv malloced  *)
   
   
   (* 
@@ -606,67 +641,63 @@ and simple_genHelper consts fvars bodyOfLambda envLayer =
     ( ExtEnv[r12=j] = Env[r11=i])
   *)
   
-  "   mov r11, 0"                               ^ " \n" ^(* i=0  *)
-  "   mov r12, 1"                               ^ " \n" ^(* j=1  *)
-  "   mov r13, " ^ (string_of_int envLayer)     ^ " \n" ^(* r13=envLayer  *)
-
-  "ExtEnvLoop"   ^ (string_of_int sLabel) ^ ":" ^ " \n" ^
-  "   cmp r11, r13"                             ^ " \n" ^(* i=j?  *)
-  "   je ExtEnvEnd" ^ (string_of_int sLabel)    ^ " \n" ^
+  "   mov r11, 0"                                                 ^ " \n" ^(* i=0  *)
+  "   mov r12, 1"                                                 ^ " \n" ^(* j=1  *)
+  "   mov r13, " ^ (string_of_int envLayer)                       ^ " \n" ^(* r13=envLayer  *)
   
+  "   mov r14, qword[rbp + 8*2]"                                  ^ " \n" ^(* Env in stack  *)
+  "   mov r8, r10"                                                ^ " \n" ^(* ExtEnv malloced  *)
+  "   add r8, 8"                                                  ^ " \n" ^(* ExtEnv[j]  *)
   
-  "   mov r14, qword[rbp + 8*2]"                ^ " \n" ^(* Env in stack  *)
-  "   mov r8, r10"                              ^ " \n" ^(* ExtEnv malloced  *)
-  
-  "   mov r15, r11"                             ^ " \n" ^(* r15=i  *)
-  "   shl r15, 3"                               ^ " \n" ^(* r15=8*i  *)
-  "   add r14, r15"                             ^ " \n" ^(* r14=Env[i]  *)
-  
-  "   mov r15, r12"                             ^ " \n" ^(* r15=j  *)
-  "   shl r15, 3"                               ^ " \n" ^(* r15=8*j  *)
-  "   add r8, r15"                              ^ " \n" ^(* r8=ExtEnv[j]  *)
+  "ExtEnvLoop"   ^ (string_of_int sLabel) ^ ":"                   ^ " \n" ^
+  "   cmp r11, r13"                                               ^ " \n" ^(* i=envLayer?  *)
+  "   je ExtEnvEnd" ^ (string_of_int sLabel)                      ^ " \n" ^
   
 
-  "   mov r15, qword[r14]"                      ^ " \n" ^(* r15=[Env[i]]  *)
-  "   mov qword[r8], r15"                       ^ " \n" ^(* [ExtEnv[j]]=r15  *)
+  "   mov r15, qword[r14]"                                        ^ " \n" ^(* r15=[Env[i]]  *)
+  "   mov qword[r8], r15"                                         ^ " \n" ^(* [ExtEnv[j]]=r15  *)
 
 
-  "   add r11, 1"                               ^ " \n" ^(* i++  *)
-  "   add r12, 1"                               ^ " \n" ^(* j++  *)
-  "   jmp ExtEnvLoop" ^ (string_of_int sLabel)  ^ " \n" ^
-  "ExtEnvEnd"    ^ (string_of_int sLabel) ^ ":" ^ " \n" ^
+  "   add r11, 1"                                                 ^ " \n" ^(* i++  *)
+  "   add r14, 8"                                                 ^ " \n" ^(* Env++  *)
+  "   add r8, 8"                                                  ^ " \n" ^(* ExtEnv++  *)
+  
+  "   jmp ExtEnvLoop" ^ (string_of_int sLabel)                    ^ " \n" ^
+  "ExtEnvEnd"    ^ (string_of_int sLabel) ^ ":"                   ^ " \n" ^
 
-  "   mov r11, 0"                               ^ " \n" ^(* i=0  *)
-  "   mov r13, qword[rbp + 8*3]"                ^ " \n" ^(* r13=paramcount  *)
-  "   mov r9, qword[rbp + 8*3]"                 ^ " \n" ^
-  "   shl r9, 3"                                ^ " \n" ^
-  "   MALLOC r9, r9"                            ^ " \n" ^(* param vector malloced  *)
-  "   mov qword[r10], r9"                       ^ " \n" ^(* [ExtEnv[0]]=r9  *)
+   
+  "   mov r9, qword[rbp + 8*3]"                                   ^ " \n" ^
+  "   shl r9, 3"                                                  ^ " \n" ^
+  "   MALLOC r9, r9"                                              ^ " \n" ^(* param vector malloced  *)
+  "   mov qword[r10], r9"                                         ^ " \n" ^(* [ExtEnv[0]]=r9  *)
   
   (* 
     for( r11=i=0 ; r11 < r13=paramcount ; r11++ )
     ( ExtEnv[r12=j] = Env[r11=i])
   *)
+
+  "   mov r11, 0"                                                 ^ " \n" ^(* i=0  *)
+  "   mov r13, qword[rbp + 8*3]"                                  ^ " \n" ^(* r13=paramcount  *)
+ 
+  "   mov r14, rbp"                                               ^ " \n" ^(* Env in stack  *)
+  "   add r14, 8*4"                                               ^ " \n" ^(* Env in stack  *)
+  "   mov r8, qword[r10]"                                         ^ " \n" ^(* ExtEnv malloced  *)
   
-  "ParamEnvLoop" ^ (string_of_int sLabel) ^ ":" ^ " \n" ^
-  "   cmp r11, r13"                             ^ " \n" ^(* i=paramcount?  *)
-  "   je ParamEnvEnd" ^ (string_of_int sLabel)  ^ " \n" ^
+  "ParamEnvLoop" ^ (string_of_int sLabel) ^ ":"                   ^ " \n" ^
+  "   cmp r11, r13"                                               ^ " \n" ^(* i=paramcount?  *)
+  "   je ParamEnvEnd" ^ (string_of_int sLabel)                    ^ " \n" ^
+
   
-  "   mov r15, r11"                             ^ " \n" ^(* r15=i  *)
-  "   add r15, 4"                               ^ " \n" ^(* r15=i+4  *)
-  "   shl r15, 3"                               ^ " \n" ^(* r15=8*(i+4)  *)
-  "   add r15, rbp"                             ^ " \n" ^(* r15=8*(i+4)+rbp=param[i]  *)
-  
-  "   mov r14, r11"                             ^ " \n" ^(* r14=i  *)
-  "   shl r14, 3"                               ^ " \n" ^(* r14=8*i  *)
-  "   add r14, r9"                              ^ " \n" ^(* r15=8*i+param vector  *)
-  
-  "   mov qword[r14], r15"                      ^ " \n" ^(* [vector[i]]=r15  *)
+  "   mov r15, qword[r14]"                                        ^ " \n" ^(* r15=[Env[i]]  *)
+  "   mov qword[r8], r15"                                         ^ " \n" ^(* [vector[i]]=r15  *)
 
 
-  "   add r11, 1"                               ^ " \n" ^(* i++  *)
-  "   jmp ParamEnvLoop" ^(string_of_int sLabel) ^ " \n" ^
-  "ParamEnvEnd"  ^ (string_of_int sLabel) ^ ":" ^ " \n" ^
+  "   add r11, 1"                                                 ^ " \n" ^(* i++  *)
+  "   add r8, 8"                                                  ^ " \n" ^(* i++  *)
+  "   add r14, 8"                                                 ^ " \n" ^(* i++  *)
+  
+  "   jmp ParamEnvLoop" ^(string_of_int sLabel)                   ^ " \n" ^
+  "ParamEnvEnd"  ^ (string_of_int sLabel) ^ ":"                   ^ " \n" ^
   
   (* 
     allocate closure object, adress in rax.
@@ -674,35 +705,37 @@ and simple_genHelper consts fvars bodyOfLambda envLayer =
     jump to continue.
   *)
 
-  "   mov rax, r10"                             ^ " \n" ^(* rax=ExtEnv  *)
   "   MAKE_CLOSURE( rax, r10,Lcode" 
-                 ^(string_of_int sLabel) ^ ")"  ^ " \n" ^(* rax=closure  *)
-  "   jmp Lcont" ^(string_of_int sLabel)        ^ " \n" ^
+                 ^(string_of_int sLabel) ^ ")"                    ^ " \n" ^(* rax=closure  *)
+  "   jmp Lcont" ^(string_of_int sLabel)                          ^ " \n" ^
 
   
-  "Lcode"        ^(string_of_int sLabel) ^ ":"  ^ " \n" ^
-  "   push rbp"                                 ^ " \n" ^(* save pointer  *)
-  "   mov rbp, rsp"                             ^ " \n" ^(* point to new closure  *)
+  "Lcode"        ^(string_of_int sLabel) ^ ":"                    ^ " \n" ^
+  "   push rbp"                                                   ^ " \n" ^(* save pointer  *)
+  "   mov rbp, rsp"                                               ^ " \n" ^(* point to new closure  *)
   (code_genScanner consts fvars bodyOfLambda (envLayer+1))
-                                                ^ " \n" ^
-  "   leave"                                    ^ " \n" ^(* rax=ExtEnv  *)
-  "   ret"                                      ^ " \n" ^(* rax=ExtEnv  *)
+                                                                  ^ " \n" ^
+  "   leave"                                                      ^ " \n" ^(* rax=ExtEnv  *)
+  "   ret"                                                        ^ " \n" ^(* rax=ExtEnv  *)
   
-  "Lcont"        ^(string_of_int sLabel) ^ ":"  ^ " \n" 
+  "Lcont"        ^(string_of_int sLabel) ^ ":"                    ^ " \n" 
 
   
   ) 
+
+
 
 
 and applic_genLoper consts fvars rands envLayer =
   match rands with
   | [] -> ""
   | a :: b -> 
-      (code_genScanner consts fvars a envLayer) ^ " \n" ^(* eval current rand *)
-      "   push rax"                             ^ " \n" ^(* save answer  *)
+      (code_genScanner consts fvars a envLayer)                   ^ " \n" ^(* eval current rand *)
+      "   push rax"                                               ^ " \n" ^(* save answer  *)
       (applic_genLoper consts fvars b envLayer)  
 
   
+
 
 and applic_genHelper consts fvars rator rands envLayer =
   labelCounterInc();
@@ -712,36 +745,40 @@ and applic_genHelper consts fvars rator rands envLayer =
   
   (
 
-  (randsLoper)                                  ^ " \n" ^(* eval rands and push *)
-  "   mov r10, " ^(string_of_int nRands)        ^ " \n" ^(* r10 =nRands  *)
-  "   push r10"                                 ^ " \n" ^(* push nRands  *)
-  (code_genScanner consts fvars rator envLayer) ^ " \n" ^(* eval rator *)
-  "   mov sil, byte[rax]"                       ^ " \n" ^(* check if rator is closure*)
-  "   cmp sil, T_CLOSURE"                       ^ " \n" ^(* check if rator is closure*)
-  "   jne ApplicError" ^ (string_of_int aLabel) ^ " \n" ^(* error if no closure *)
+  (randsLoper)                                                    ^ " \n" ^(* eval rands and push *)
+  "   mov r10, " ^(string_of_int nRands)                          ^ " \n" ^(* r10 =nRands  *)
+  "   push r10"                                                   ^ " \n" ^(* push nRands  *)
+  (code_genScanner consts fvars rator envLayer)                   ^ " \n" ^(* eval rator *)
+  "   mov sil, byte[rax]"                                         ^ " \n" ^(* check if rator is closure*)
+  "   cmp sil, T_CLOSURE"                                         ^ " \n" ^(* check if rator is closure*)
+  "   jne ApplicError" ^ (string_of_int aLabel)                   ^ " \n" ^(* error if no closure *)
   
-  "   CLOSURE_ENV r9, rax"                      ^ " \n" ^(* r9 = Env  *)
-  "   push r9"                                  ^ " \n" ^(* push closure Env*)
-  "   CLOSURE_CODE r8, rax"                     ^ " \n" ^(* r9 = code  *)
-  "   call r8"                                  ^ " \n" ^(* call closure code*)
+  "   CLOSURE_ENV r9, rax"                                        ^ " \n" ^(* r9 = Env  *)
+  "   push r9"                                                    ^ " \n" ^(* push closure Env*)
+  "   CLOSURE_CODE r8, rax"                                       ^ " \n" ^(* r9 = code  *)
+  "   call r8"                                                    ^ " \n" ^(* call closure code*)
   (*
   upon return, pop env and args,
   we notice args can have different length after call so we
   take back nRands, and pop env iff rator is of type closure
   *)
-  "   add rsp, 8*1"                             ^ " \n" ^(* pop Env *)
+  "   add rsp, 8*1"                                               ^ " \n" ^(* pop Env *)
   
-  "ApplicError"  ^(string_of_int aLabel) ^ ":"  ^ " \n" ^
-  "   pop rbx"                                  ^ " \n" ^(* pop nRands count *)
-  "   shl rbx, 3"                               ^ " \n" ^(* nRands*8 *)
-  "   add rsp, rbx"                             ^ " \n" (* pop nRands *)
+  "ApplicError"  ^(string_of_int aLabel) ^ ":"                    ^ " \n" ^
+  "   pop rbx"                                                    ^ " \n" ^(* pop nRands count *)
+  "   shl rbx, 3"                                                 ^ " \n" ^(* nRands*8 *)
+  "   add rsp, rbx"                                               ^ " \n" (* pop nRands *)
   
   )
 
 
   
+
+  
 and opt_genHelper consts fvars lambdaParams vs bodyOfLambda envLayer =
   raise X_syntax_error
+
+
 
 
   
@@ -753,73 +790,79 @@ and applicTP_genHelper consts fvars rator rands envLayer =
   
   (
   
-  "   push MAGIC"                               ^ " \n" ^(* push MAGIC  *)
-  (randsTPLoper)                                ^ " \n" ^(* eval rands and push *)
-  "   mov r10, " ^(string_of_int nTPRands)      ^ " \n" ^(* r10 =nTPRands  *)
-  "   push r10"                                 ^ " \n" ^(* push nTPRands  *)
-  (code_genScanner consts fvars rator envLayer) ^ " \n" ^(* eval rator *)
-  "   mov sil, byte[rax]"                       ^ " \n" ^(* check if rator is closure*)
-  "   cmp sil, T_CLOSURE"                       ^ " \n" ^(* check if rator is closure*)
-  (* "   je ApplicError" ^ (string_of_int aTPLabel)^ " \n" ^error if no closure *)
+  (randsTPLoper)                                                  ^ " \n" ^(* eval rands and push *)
+  "   mov r10, " ^(string_of_int nTPRands)                        ^ " \n" ^(* r10 =nTPRands  *)
+  "   push r10"                                                   ^ " \n" ^(* push nTPRands  *)
+  (code_genScanner consts fvars rator envLayer)                   ^ " \n" ^(* eval rator *)
+  "   mov sil, byte[rax]"                                         ^ " \n" ^(* check if rator is closure*)
+  "   cmp sil, T_CLOSURE"                                         ^ " \n" ^(* check if rator is closure*)
+  "   jne ApplicError"^(string_of_int aTPLabel)                   ^ " \n" ^(* error if no closure *)
   
-  "   CLOSURE_ENV r9, rax"                      ^ " \n" ^(* r9 = Env  *)
-  "   push r9"                                  ^ " \n" ^(* push closure Env*)
-  "   CLOSURE_CODE r8, rax"                     ^ " \n" ^(* r9 = code  *)
+  "   CLOSURE_ENV r9, rax"                                        ^ " \n" ^(* r9 = Env  *)
+  "   push r9"                                                    ^ " \n" ^(* push closure Env*)
+  
+  "   CLOSURE_CODE r8, rax"                                       ^ " \n" ^(* r9 = code  *)
+  "   mov r13, qword[rbp]"                                        ^ " \n" ^(* save old rbp  *)
+  
+  "   mov r10, qword[rbp+8*1]"                                    ^ " \n" ^(* r10 =oldRetAdress  *)
+  "   push r10"                                                   ^ " \n" ^(* push oldRetAdress  *)
+  
+  
   
   (*
   push rbp+8 and move pointers to prepare loop
   *)
-  "   mov r10, qword[rbp+ 8*1 ]"                ^ " \n" ^(* r10 =oldRetAdress  *)
-  "   mov r15, qword[rbp+ 8*3 ]"                ^ " \n" ^(* r15 =nTPRands  *)
-  "   mov r14, qword[rsp+ 8*1 ]"                ^ " \n" ^(* r14 =nTPRands  *)
-  "   mov r13, qword[rbp]"                      ^ " \n" ^(* save old rbp  *)
+  
+  "   mov r15, qword[rbp+ 8*3 ]"                                  ^ " \n" ^(* r15 =nTPRands  *)
+  "   mov r14, " ^(string_of_int nTPRands)                        ^ " \n" ^(* r10 =nTPRands  *)
+  
+  "   add r15, 3"                                                 ^ " \n" ^(* r15 =nTPRands+4  *)
+  "   shl r15, 3"                                                 ^ " \n" ^(* r15 =(nTPRands+4)*8  *)
+  "   add r15, rbp"                                               ^ " \n" ^(* r11 =(nTPRands+4)*8+rbp  *)
   
   
-  "   add r15, 4"                               ^ " \n" ^(* r15 =nTPRands+4  *)
-  "   shl r15, 3"                               ^ " \n" ^(* r15 =(nTPRands+4)*8  *)
-  "   add r15, rbp"                             ^ " \n" ^(* r11 =(nTPRands+4)*8+rbp  *)
+  "   add r14, 2"                                                 ^ " \n" ^(* r14 =nTPRands+2  *)
+  "   shl r14, 3"                                                 ^ " \n" ^(* r14 =(nTPRands+2)*8  *)
+  "   add r14, rsp"                                               ^ " \n" ^(* r11 =(nTPRands+4)*8+rbp  *)
   
-  
-  "   add r14, 2"                               ^ " \n" ^(* r14 =nTPRands+2  *)
-  "   shl r14, 3"                               ^ " \n" ^(* r14 =(nTPRands+2)*8  *)
-  "   add r14, rsp"                             ^ " \n" ^(* r10 =(nTPRands+2)*8+rsp  *)
-  
-  
+ 
   (*
   loop with pointers to fix stack
   *)
-  "ApplicTPLoop" ^(string_of_int aTPLabel) ^ ":"^ " \n" ^
-  "   cmp r14, rsp"                             ^ " \n" ^(* r10 =(nTPRands+2)*8+rsp  *)
-  "   je ApplicTPEnd" ^ (string_of_int aTPLabel)^ " \n" ^(* error if no closure *)
-  "   mov r11, qword[r14]"                      ^ " \n" ^(* r10 =oldRetAdress  *)
-  "   mov qword[r15], r11"                      ^ " \n" ^(* r10 =oldRetAdress  *)
-  "   sub r14, 8"                               ^ " \n" ^(* r10 =oldRetAdress  *)
-  "   sub r15, 8"                               ^ " \n" ^(* r10 =oldRetAdress  *)
-  "   jmp ApplicTPLoop"^(string_of_int aTPLabel)^ " \n" ^(* error if no closure *)
+  "ApplicTPLoop" ^(string_of_int aTPLabel) ^ ":"                  ^ " \n" ^
   
-  "ApplicTPEnd" ^(string_of_int aTPLabel) ^ ":" ^ " \n" ^
-  "   mov r11, qword[r14]"                      ^ " \n" ^(* r10 =oldRetAdress  *)
-  "   mov qword[r15], r11"                      ^ " \n" ^(* r10 =oldRetAdress  *)
-  "   mov rbp, r13"                             ^ " \n" ^(* r10 =oldRetAdress  *)
-  "   mov rsp, r15"                             ^ " \n" ^(* r10 =oldRetAdress  *)
+  "   mov r11, qword[r14]"                                        ^ " \n" ^(* r10 =oldRetAdress  *)
+  "   mov [r15], r11"                                             ^ " \n" ^(* r10 =oldRetAdress  *)
+  
+  "   cmp r14, rsp"                                               ^ " \n" ^(* r10 =(nTPRands+2)*8+rsp  *)
+  "   je ApplicTPEnd" ^ (string_of_int aTPLabel)                  ^ " \n" ^(* error if no closure *)
+  
+  "   sub r14, 8"                                                 ^ " \n" ^(* r10 =oldRetAdress  *)
+  "   sub r15, 8"                                                 ^ " \n" ^(* r10 =oldRetAdress  *)
+  
+ 
+  "   jmp ApplicTPLoop"^(string_of_int aTPLabel)                  ^ " \n" ^(* error if no closure *)
+  
+  "ApplicTPEnd" ^(string_of_int aTPLabel) ^ ":"                   ^ " \n" ^
+  "   mov rbp, r13"                                               ^ " \n" ^(* r10 =oldRetAdress  *)
+  
+  "   mov rsp, r15"                                               ^ " \n" ^(* r10 =oldRetAdress  *)
   
   
-  "   push r10"                                 ^ " \n" ^(* push oldRetAdress  *)
-  "   call r8"                                  ^ " \n" ^(* call closure code*)
-  
+  "   jmp r8"                                                     ^ " \n" ^(* call closure code*)
+   
   
   (*
   upon return, pop env and args,
   we notice args can have different length after call so we
   take back nTPRands, and pop env iff rator is of type closure
   *)
-  "   add rsp, 8*1"                             ^ " \n" ^(* pop Env *)
+  "   add rsp, 8*1"                                               ^ " \n" ^(* pop Env *)
   
-  "ApplicError"  ^(string_of_int aTPLabel) ^ ":"^ " \n" ^
-  "   pop rbx"                                  ^ " \n" ^(* pop nTPRands count *)
-  "   shl rbx, 3"                               ^ " \n" ^(* nTPRands*8 *)
-  "   add rsp, rbx"                             ^ " \n" ^(* pop nTPRands *)
-  "   add rsp, 8*1"                             ^ " \n"  (* pop MAGIC *)
+  "ApplicError"  ^(string_of_int aTPLabel) ^ ":"                  ^ " \n" ^
+  "   pop rbx"                                                    ^ " \n" ^(* pop nTPRands count *)
+  "   shl rbx, 3"                                                 ^ " \n" ^(* nTPRands*8 *)
+  "   add rsp, rbx"                                               ^ " \n" (* pop nTPRands *)
   
   )
 

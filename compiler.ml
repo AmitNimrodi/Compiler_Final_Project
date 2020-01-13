@@ -172,7 +172,8 @@ try
   let infile = Sys.argv.(1) in
   let code =  (file_to_string "stdlib.scm") ^ (file_to_string infile) in
    let asts = string_to_asts code in *)
-  let asts = string_to_asts "(+ 1 2)" in
+  let asts = string_to_asts "((lambda (x y) 
+              ((lambda (w e) (+ x w))1 2))3 4)" in
   let consts_tbl = Code_Gen.make_consts_tbl asts in
   let fvars_tbl = Code_Gen.make_fvars_tbl asts in
   let generate = Code_Gen.generate consts_tbl fvars_tbl in
