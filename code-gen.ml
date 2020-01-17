@@ -72,7 +72,27 @@ let getAndInc x =
 
 
 (* TEST:  cleanDupes [1;1;1;2;3;4;5;4;3;3;6;2;2]  
-TODO: might not know how to equalise objects - use expr'_eq instead *)
+TODO: might not know how to equalise objects - use expr'_eq instead 
+
+
+[Sexpr (Number (Int 1)); Sexpr (Number (Int 1)); Sexpr (Number (Int 2));
+ Sexpr (Pair (Number (Int 2), TagRef "y"));
+ Sexpr
+  (Pair (TaggedSexpr ("y", Pair (Number (Int 2), TagRef "y")), TagRef "x"));
+ Sexpr
+  (Pair (Number (Int 1),
+    Pair (TaggedSexpr ("y", Pair (Number (Int 2), TagRef "y")), TagRef "x")));
+ Sexpr
+  (Pair (TagRef "y",
+    Pair (Number (Int 1),
+     Pair (TaggedSexpr ("y", Pair (Number (Int 2), TagRef "y")), TagRef "x"))));
+ Sexpr
+  (Pair (Number (Int 1),
+    Pair (TagRef "y",
+     Pair (Number (Int 1),
+      Pair (TaggedSexpr ("y", Pair (Number (Int 2), TagRef "y")), TagRef "x")))))]
+
+*)
 let rec cleanDupes sexprList =
   let a = cleanDupesinner (List.rev sexprList) in
     (List.rev a)
@@ -89,41 +109,75 @@ and cleanDupesinner sexprList =
 
 let rec const_table_maker listOfExprs = 
   
-  let constSexprsList      = ( findConsts listOfExprs ) in
-  let fixedTagsList        = ( tagFixConstList constSexprsList ) in
-  let dupelessConstList    = ( cleanDupes fixedTagsList ) in
-  let extendedList         = ( extendList dupelessConstList) in
-  let dupelessExtendedList = ( cleanDupes extendedList ) in
-  let basicList            = [ (Void, (0, "MAKE_VOID"));                  (Sexpr(Nil), (1, "MAKE_NIL"));
-                               (Sexpr(Bool(false)), (2, "MAKE_BOOL(0)")); (Sexpr(Bool(true)), (4, "MAKE_BOOL(1)")) ] in 
-  let tupledList           = ( tupleListMaker dupelessExtendedList basicList ) in
-  tupledList
+  let constSexprsList       = ( findConsts listOfExprs ) in
+  let fixedTagsList         = ( tagFixConstList constSexprsList ) in
+  let tagsCouplesList       = ( findTaggedCouplesList fixedTagsList [] ) in
+  let dupelessConstList     = ( cleanDupes fixedTagsList ) in
+  let extendedList          = ( extendList dupelessConstList) in
+  let dupelessExtendedList  = ( cleanDupes extendedList ) in
+  let basicList             = [ (Void, (0, "MAKE_VOID"));                  (Sexpr(Nil), (1, "MAKE_NIL"));
+                                (Sexpr(Bool(false)), (2, "MAKE_BOOL(0)")); (Sexpr(Bool(true)), (4, "MAKE_BOOL(1)")) ] in 
+  let tupledList            = ( tupleListMaker dupelessExtendedList basicList tagsCouplesList ) in
+  let tupledListWithTagRefs = ( fixTupleList tupledList tagsCouplesList [] ) in
+  tupledListWithTagRefs
 
-(*TEST:
+
+and findTaggedCouplesList lis acc = 
+  match lis with
+  | []     -> acc 
+  | a :: b -> (
+      match a with 
+      | Sexpr(TaggedSexpr(name,valu)) ->
+          let updatedAcc = ( acc @ [(name, valu)] @ (scanTheTaggedSexpr valu []) ) in 
+                           ( findTaggedCouplesList b updatedAcc )
+      | Sexpr(something)              -> ( findTaggedCouplesList b acc ) 
+      | any                           -> raise X_syntax_error
+      )
+
+and scanTheTaggedSexpr valuOfTagged insideTheTagAcc = 
+  match valuOfTagged with
+  | Pair(first,second)  ->
+      let insideThePair  = ( scanPairInsideTagged first second ) in
+                           ( insideTheTagAcc @  insideThePair )
+  | TaggedSexpr(x,valu) ->
+      let acc            = ( insideTheTagAcc @ [(x, valu)] ) in
+                           (scanTheTaggedSexpr valu acc)
+  | any                 -> insideTheTagAcc 
+
+
+and scanPairInsideTagged first second = 
+  let firstEl  = (scanTheTaggedSexpr first []) in
+  let secondEl = (scanTheTaggedSexpr second []) in
+  ( firstEl @ secondEl )
+
+
+(* TEST:
 
 [Sexpr (TaggedSexpr ("a", Number (Int 2)));
  Sexpr (Pair (TaggedSexpr ("a", Bool true), Pair (TagRef "a", Nil)))]
-*)
+ *)
+
 and tagFixConstList constSexprsList = 
   match constSexprsList with
   | [] -> []
   | a :: b -> (
     match a with 
-    | Sexpr(something) -> ( List.append [(fixThisTag something (string_of_int (getAndIncTagCounter 1)))] (tagFixConstList b) )
-    | Void ->  (tagFixConstList b) 
-    
+    (*| Sexpr(TaggedSexpr(x,valu)) -> ( List.append [(fixThisTag TaggedSexpr(x,valu) (string_of_int (getAndIncTagCounter 1)))] (tagFixConstList b) )*)
+    | Sexpr(something)           -> ( List.append [Sexpr(fixThisTag something (string_of_int (getAndIncTagCounter 1)))] (tagFixConstList b) )
+    | Void                       -> (tagFixConstList b) 
   )
 
 and fixThisTag a fixer=
   match a with
   | Pair(first,second)  -> (pairTagFixer first second fixer) 
-  | TaggedSexpr(x,valu) -> (Sexpr(TaggedSexpr((x^fixer), valu)))
-  | TagRef(x)           -> (Sexpr(TagRef(x^fixer)))
-  | any                 -> (Sexpr(a))
+  | TaggedSexpr(x,valu) -> (TaggedSexpr((x^fixer), (fixThisTag valu fixer)))
+  | TagRef(x)           -> (TagRef(x^fixer))
+  | any                 -> a
+
 
 and pairTagFixer first second fixer = 
-  let fixedFirst = (fixThisTag first fixer) in
-  let fixedSecond = (fixThisTag second fixer) in
+  let fixedFirst = Sexpr(fixThisTag first fixer) in
+  let fixedSecond = Sexpr(fixThisTag second fixer) in
   let fixFirst = (
     match fixedFirst with
     | Sexpr(something) -> something
@@ -134,7 +188,7 @@ and pairTagFixer first second fixer =
     | Sexpr(something) -> something
     | any -> raise X_syntax_error
   ) in
-  (Sexpr(Pair(fixFirst,fixSecond)))
+  (Pair(fixFirst,fixSecond))
 
 and findConsts listOfExprs = 
 match listOfExprs with
@@ -151,38 +205,45 @@ and extendList sexprList =
   | [] -> []
   | a :: b -> (
     match a with
-    | Sexpr(Symbol(str)) -> ( List.append [ Sexpr(String(str)); a ] (extendList b) )
-    | Sexpr(Pair(x,y))   -> ( List.append (pairExtender (Pair(x,y))) (extendList b) )
-    | Sexpr(x)           -> ( List.append [ Sexpr(x) ] (extendList b) )
-    | Void               -> ( extendList b )
+    | Sexpr(Symbol(str))            -> ( List.append [ Sexpr(String(str)); a ] (extendList b) )
+    | Sexpr(Pair(x,y))              -> ( List.append (pairExtender (Pair(x,y))) (extendList b) )
+    | Sexpr(TagRef(g))              -> ( extendList b )
+    | Sexpr(TaggedSexpr(name,valu)) -> ( List.append (extendList [ Sexpr(valu) ] ) (extendList b) )
+    | Sexpr(valu)                   -> ( List.append [ a ] (extendList b) )
+    | Void                          -> ( extendList b )
     
               )
 
-(*TESTED WITH INPUT ABOVE - WORKS *)
+(*TESTED WITH INPUT ABOVE - WORKS 
+[(Sexpr (Pair (Number (Int 2), Pair (Number (Int 2), TagRef "y1"))))]
+*)
+
+
+
 and pairExtender expr = 
   match expr with
-  | Pair(Nil,Nil) -> []
+  | Pair(Nil,Nil) -> [ Sexpr(expr) ]
   | Pair(x, Nil)  -> ( List.append (extendList [ Sexpr(x) ] )  [ Sexpr(expr) ] )
   | Pair(x,y)     -> ( List.append
                      ( List.append (extendList [ Sexpr(x) ] ) (extendList [ Sexpr(y) ]) )
                       [ Sexpr(Pair(x,y)) ] )
   | any           -> raise X_syntax_error
 
-and tupleListMaker sexprsList tuplesList = 
+and tupleListMaker sexprsList tuplesList taggedCouplesList = 
   match sexprsList with
   | []                    -> tuplesList
   | a :: b                -> (
     match a with
-    | Void                -> (tupleListMaker b tuplesList)
-    | Sexpr(Nil)          -> (tupleListMaker b tuplesList)
-    | Sexpr(Bool(true))   -> (tupleListMaker b tuplesList)
-    | Sexpr(Bool(false))  -> (tupleListMaker b tuplesList)
-    | any                 -> (let lis = (List.append tuplesList [(tupleMaker a tuplesList)]) in
-                             (tupleListMaker b lis)
+    | Void                -> (tupleListMaker b tuplesList taggedCouplesList)
+    | Sexpr(Nil)          -> (tupleListMaker b tuplesList taggedCouplesList)
+    | Sexpr(Bool(true))   -> (tupleListMaker b tuplesList taggedCouplesList)
+    | Sexpr(Bool(false))  -> (tupleListMaker b tuplesList taggedCouplesList)
+    | any                 -> (let lis = (List.append tuplesList [(tupleMaker a tuplesList taggedCouplesList)]) in
+                             (tupleListMaker b lis taggedCouplesList)
+                              )
                              )
-                            )
-
-and tupleMaker sexpr tuplesList = (* TODO: which strings should be inputted with each type? *)
+(* TODO: FIX : RUN OVER THE TUPLE LIST AT THE END , LOOK FOR TAG REFS, AND FIX THEIR "CONST TABL+ 0 " TO THEIR REAL OFFSET *)
+and tupleMaker sexpr tuplesList taggedCouplesList = 
   match sexpr with
   | Sexpr(Number(Int(valu)))           -> let offset = getAndInc(num_char_size) in 
                                           (sexpr, (offset, "MAKE_LITERAL_INT(" ^ (string_of_int valu) ^")"))
@@ -195,26 +256,40 @@ and tupleMaker sexpr tuplesList = (* TODO: which strings should be inputted with
                                           (sexpr, (offset, "MAKE_LITERAL_STRING \"" ^ str^"\""))
   | Sexpr(Symbol(str))                 -> let offset = getAndInc(num_char_size) in
                                           (sexpr, (offset, "MAKE_LITERAL_SYMBOL(const_tbl+" ^ (symbolTupleMaker sexpr tuplesList) ^ ")"))
-  | Sexpr(Pair(first,second))          -> (pairTupleMaker first second tuplesList)
-  | Sexpr(TaggedSexpr(a,b))            -> raise X_syntax_error
-  | Sexpr(TagRef(a))                   -> raise X_syntax_error
-  | any                                -> (sexpr, (555, "AMIT")) (*TO CHECK: Nil/Void/Boolean might get here from a recursive call on a pair *)
+  | Sexpr(Pair(first,second))          -> (pairTupleMaker first second tuplesList taggedCouplesList)
+  | any                                -> raise X_syntax_error
 
-
-and pairTupleMaker first second tuplesList = 
-  let pred vari sexprTuple = 
-    (match sexprTuple with
-    | (Sexpr(x), (off, representation)) -> (constsEqualizer (Sexpr(x)) (Sexpr(vari)))
-    | (Void, (off, representation))     -> (constsEqualizer Void (Sexpr(vari)))
-    ) in
-  let offsetPointer vari =
-    ( match (List.find (pred vari) tuplesList) with
-      | (x, (off, representation)) -> off
-    ) in
-  let offsetA = (offsetPointer first) in
-  let offsetB = (offsetPointer second) in
+and pairTupleMaker first second tuplesList taggedCouplesList = 
+  let offsetA = 
+    (let checkerA =
+      (match first with
+      | TagRef(name)           -> (findTheRef name taggedCouplesList)
+      | TaggedSexpr(name,body) -> body
+      | any                    -> first
+      ) in 
+    (offsetPointer checkerA tuplesList)) in
+  let offsetB = 
+    (let checkerB =
+      (match second with
+      | TagRef(name)           -> (findTheRef name taggedCouplesList)
+      | TaggedSexpr(name,body) -> body
+      | any                    -> second
+      ) in 
+    (offsetPointer checkerB tuplesList)) in
   let valu = getAndInc(pair_size) in
   (Sexpr(Pair(first,second)), (valu, "MAKE_LITERAL_PAIR(const_tbl+"^(string_of_int offsetA)^ ", const_tbl+"^(string_of_int offsetB) ^")"))
+
+and sexprsEqualPred vari sexprTuple = 
+  match sexprTuple with
+  | (Sexpr(x), (off, representation)) -> (constsEqualizer (Sexpr(x)) (Sexpr(vari)))
+  | (Void, (off, representation))     -> (constsEqualizer Void       (Sexpr(vari)))
+  
+and offsetPointer vari tuplesList =
+  let ans = (try 
+    (List.find (sexprsEqualPred vari) tuplesList)
+    with Not_found -> (Sexpr(Number(Int(1))), (0, "aaa")))
+  in match ans with
+    | (x, (off, representation)) -> off 
 
 
   (* TEST :  symbolTupleMaker (Sexpr(Symbol("aaa"))) [(Sexpr(String("aa")), (6,"something"));  (Sexpr(String("aaa")), (17, "something"))];;
@@ -235,6 +310,57 @@ and symbolTupleMaker sexpr tuplesList =
   ) in
   (string_of_int offsetPointer)
   
+and findTheRef name taggedCouplesList =
+  let pred taggedExpr =
+    ( match taggedExpr with
+      | (tagName, valOfTag) -> if (tagName = name) then true else false
+    ) in
+  match (List.find pred taggedCouplesList) with
+  | (str,sexpr) -> sexpr
+
+and fixTupleList tupleList tagsCouplesList fixedTupleList = 
+  match tupleList with
+  | []                                  -> fixedTupleList
+  | a :: b                              -> (
+    match a with
+    | (Sexpr(Pair(x,y)), (off, str))    -> 
+    (fixTupleList b tagsCouplesList ( fixedTupleList @ [( fixTagRef a x y off tupleList tagsCouplesList fixedTupleList)] ) )
+    | any                               -> (fixTupleList b tagsCouplesList ( fixedTupleList @ [a] ) )
+                                          )
+
+and fixTagRef tuple first second selfOffset tuplesList tagsCouplesList fixedTupleList =
+  let nameOfTagA = 
+    (match first with
+    | TagRef(name)               -> name
+    | TaggedSexpr(name, valu)    -> name
+    | any                        -> "NOT_TAGGED") in
+  let nameOfTagB = 
+    (match second with
+    | TagRef(name)               -> name
+    | TaggedSexpr(name, valu)    -> name
+    | any                        -> "NOT_TAGGED") in
+  match nameOfTagA,nameOfTagB with
+    | "NOT_TAGGED", "NOT_TAGGED" -> tuple
+    | nameA, "NOT_TAGGED"        -> 
+        ( makeFixedPairTuple (findTheRef nameA tagsCouplesList) second selfOffset tuplesList fixedTupleList first second )
+    | "NOT_TAGGED", nameB        ->
+        ( makeFixedPairTuple first (findTheRef nameB tagsCouplesList) selfOffset tuplesList fixedTupleList first second)
+    | nameA, nameB               ->
+        ( makeFixedPairTuple (findTheRef nameA tagsCouplesList) (findTheRef nameB tagsCouplesList) selfOffset tuplesList fixedTupleList first second )
+
+and makeFixedPairTuple first second selfOffset tuplesList fixedTupleList origA origB = 
+  let offsetA = ( offsetPointer first  tuplesList ) in
+  let offsetB = ( offsetPointer second tuplesList ) in
+  match offsetA, offsetB with
+  | 0, 0     -> let offsetA = ( offsetPointer first fixedTupleList ) in
+                  let offsetB = ( offsetPointer second fixedTupleList ) in
+  (Sexpr(Pair(origA,origB)), (selfOffset, "MAKE_LITERAL_PAIR(const_tbl+"^(string_of_int offsetA)^ ", const_tbl+"^(string_of_int offsetB) ^")"))
+  | 0, num    -> let offsetA = ( offsetPointer first fixedTupleList ) in
+  (Sexpr(Pair(origA,origB)), (selfOffset, "MAKE_LITERAL_PAIR(const_tbl+"^(string_of_int offsetA)^ ", const_tbl+"^(string_of_int offsetB) ^")"))
+  | num, 0    -> let offsetB = ( offsetPointer second fixedTupleList ) in
+  (Sexpr(Pair(origA,origB)), (selfOffset, "MAKE_LITERAL_PAIR(const_tbl+"^(string_of_int offsetA)^ ", const_tbl+"^(string_of_int offsetB) ^")"))
+  | num1, num2 ->
+  (Sexpr(Pair(origA,origB)), (selfOffset, "MAKE_LITERAL_PAIR(const_tbl+"^(string_of_int offsetA)^ ", const_tbl+"^(string_of_int offsetB) ^")"))
 
 and constScanner exp = (* should each match case be wrapped with Expr'(intervalValue) ? *)
   match exp with
@@ -264,9 +390,6 @@ and seqConstScanHelper listOfExprs =
  Const' (Sexpr (Pair (TaggedSexpr ("a", Bool true), Pair (TagRef "a", Nil))))))
   *)
 ;;
-
-
-
 
   
   (*       HERE WE ARE FINISHED WITH THE CONST_TABLE!!!    *)
@@ -706,7 +829,7 @@ and simple_genHelper consts fvars bodyOfLambda envLayer =
   *)
 
   "   MAKE_CLOSURE( rax, r10,Lcode" 
-                 ^(string_of_int sLabel) ^ ")"                    ^ " \n" ^(* rax=closure  *)
+                 ^(string_of_int sLabel) ^ ")"                    ^ " \n" ^(* rax=closure, r10 = address of extEnv  *)
   "   jmp Lcont" ^(string_of_int sLabel)                          ^ " \n" ^
 
   
@@ -777,7 +900,105 @@ and applic_genHelper consts fvars rator rands envLayer =
   
 and opt_genHelper consts fvars lambdaParams vs bodyOfLambda envLayer =
   raise X_syntax_error
+(*
+labelCounterInc();
+let sLabel = labelCounterGet() in
+(
 
+"   mov r10, " ^ (string_of_int(envLayer+1))                    ^ " \n" ^
+"   shl r10, 3"                                                 ^ " \n" ^
+"   MALLOC r10, r10"                                            ^ " \n" ^(* ExtEnv malloced  *)
+
+
+(* 
+  for( r11=i=0 , r12=j=1 ; r11 < r13=envLayer ; r11++ , r12++)
+  ( ExtEnv[r12=j] = Env[r11=i])
+*)
+
+"   mov r11, 0"                                                 ^ " \n" ^(* i=0  *)
+"   mov r12, 1"                                                 ^ " \n" ^(* j=1  *)
+"   mov r13, " ^ (string_of_int envLayer)                       ^ " \n" ^(* r13=envLayer  *)
+
+"   mov r14, qword[rbp + 8*2]"                                  ^ " \n" ^(* Env in stack  *)
+"   mov r8, r10"                                                ^ " \n" ^(* ExtEnv malloced  *)
+"   add r8, 8"                                                  ^ " \n" ^(* ExtEnv[j]  *)
+
+"ExtEnvLoop"   ^ (string_of_int sLabel) ^ ":"                   ^ " \n" ^
+"   cmp r11, r13"                                               ^ " \n" ^(* i=envLayer?  *)
+"   je ExtEnvEnd" ^ (string_of_int sLabel)                      ^ " \n" ^
+
+
+"   mov r15, qword[r14]"                                        ^ " \n" ^(* r15=[Env[i]]  *)
+"   mov qword[r8], r15"                                         ^ " \n" ^(* [ExtEnv[j]]=r15  *)
+
+
+"   add r11, 1"                                                 ^ " \n" ^(* i++  *)
+"   add r14, 8"                                                 ^ " \n" ^(* Env++  *)
+"   add r8, 8"                                                  ^ " \n" ^(* ExtEnv++  *)
+
+"   jmp ExtEnvLoop" ^ (string_of_int sLabel)                    ^ " \n" ^
+"ExtEnvEnd"    ^ (string_of_int sLabel) ^ ":"                   ^ " \n" ^
+
+ 
+"   mov r9, qword[rbp + 8*3]"                                   ^ " \n" ^ (* r9=numberOfArgs or paramCount *)
+"   shl r9, 3"                                                  ^ " \n" ^ (* allocate 8byte for each arg in numberOfArgs *)
+"   MALLOC r9, r9"                                              ^ " \n" ^(* param vector malloced  *)
+"   mov qword[r10], r9"                                         ^ " \n" ^(* [ExtEnv[0]]=r9  *)
+
+(* 
+  for( r11=i=0 ; r11 < r13=paramcount ; r11++ )
+  ( ExtEnv[r12=j] = Env[r11=i])
+*)
+
+"   mov r11, 0"                                                 ^ " \n" ^(* i=0  *)
+"   mov r13, qword[rbp + 8*3]"                                  ^ " \n" ^(* r13=paramcount  *)
+
+"   mov r14, rbp"                                               ^ " \n" ^(* Env in stack  *)
+"   add r14, 8*4"                                               ^ " \n" ^(* Env in stack  *)
+"   mov r8, qword[r10]"                                         ^ " \n" ^(* r8 points to first element in extEnv  *)
+
+"   ParamEnvLoop" ^ (string_of_int sLabel) ^ ":"                ^ " \n" ^
+"   cmp r11, r13"                                               ^ " \n" ^(* i=paramcount?  *)
+"   je ParamEnvEnd" ^ (string_of_int sLabel)                    ^ " \n" ^
+
+
+"   mov r15, qword[r14]"                                        ^ " \n" ^(* r15=[Env[i]]  *)
+"   mov qword[r8], r15"                                         ^ " \n" ^(* [vector[i]]=r15  *)
+
+
+"   add r11, 1"                                                 ^ " \n" ^(* i++  *)
+"   add r8, 8"                                                  ^ " \n" ^(* r8 points to next index of extEnv  *)
+"   add r14, 8"                                                 ^ " \n" ^(*   *)
+
+"   jmp ParamEnvLoop" ^(string_of_int sLabel)                   ^ " \n" ^
+"   ParamEnvEnd"  ^ (string_of_int sLabel) ^ ":"                ^ " \n" ^
+"   "
+"   mov r13, rbp+8*(4+n)"                                       ^ " \n" ^ (* point to an extra arg place - to add magic *)
+"   mov qword[r13], SOB_NIL_ADDRESS"                            ^ " \n" ^ (* magic *)
+(* 
+  allocate closure object, adress in rax.
+  set closure env and code(second and third parameters to make_closure)
+  jump to continue.
+*)
+
+"   MAKE_CLOSURE( rax, r10,Lcode"                             (*r10 is the extEnv pointer*))
+               ^(string_of_int sLabel) ^ ")"                    ^ " \n" ^(* rax=closure  *)
+"   jmp Lcont" ^(string_of_int sLabel)                          ^ " \n" ^
+
+
+"Lcode"        ^(string_of_int sLabel) ^ ":"                    ^ " \n" ^
+"   push rbp"                                                   ^ " \n" ^(* save pointer  *)
+"   mov rbp, rsp"                                               ^ " \n" ^(* point to new closure  *)
+(code_genScanner consts fvars bodyOfLambda (envLayer+1))
+                                                                ^ " \n" ^
+"   leave"                                                      ^ " \n" ^(* rax=ExtEnv  *)
+"   ret"                                                        ^ " \n" ^(* rax=ExtEnv  *)
+
+"Lcont"        ^(string_of_int sLabel) ^ ":"                    ^ " \n" 
+
+
+) 
+*)
 
 
 
@@ -928,7 +1149,10 @@ and applicTP_genHelper consts fvars rator rands envLayer =
       [(run_semantics
      (tag_parse_expression
       (read_sexpr
-        "'a"
+        "(
+          (define foo (lambda (x) x))
+          (foo 1 2 3 4)
+          )"
             )
           )
         )];;
@@ -953,7 +1177,34 @@ and applicTP_genHelper consts fvars rator rands envLayer =
    tupleListMaker [Sexpr (String "a"); Sexpr (Symbol "a")] basicList;;
 
 
-  *) 
-
-
   
+
+findTaggedCouplesList [Sexpr
+    (TaggedSexpr ("x8",
+      Pair (Number (Int 1),
+       Pair (TagRef "y8",
+        Pair (Number (Int 1),
+         Pair (TaggedSexpr ("y8", Pair (Number (Int 2), TagRef "y8")),
+          TagRef "x8"))))))] [] ;;
+
+
+    run_semantics (
+      tag_parse_expression(
+        read_sexpr "
+        '#{x}=(1 #{y} 1 #{y}=(2 . #{y}) . #{x})
+        "
+      )
+    )
+
+    ABOVE RUN OUTPUT as list:
+    make_consts_tbl [Const'
+      (Sexpr
+      (TaggedSexpr ("x",
+        Pair (Number (Int 1),
+        Pair (TagRef "y",
+          Pair (Number (Int 1),
+          Pair (TaggedSexpr ("y", Pair (Number (Int 2), TagRef "y")),
+            TagRef "x")))))))]
+
+
+  *) 
