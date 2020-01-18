@@ -20,7 +20,8 @@ let primitive_names_to_labels =
    "+", "bin_add"; "*", "bin_mul"; "-", "bin_sub"; "/", "bin_div"; "<", "bin_lt"; "=", "bin_equ";
 (* you can add yours here *)
    "car", "bin_car"; "cdr", "bin_cdr"; "cons", "bin_cons";
-   "set-car!", "bin_set_car"; "set-cdr!", "bin_set_cdr"];;
+   "set-car!", "bin_set_car"; "set-cdr!", "bin_set_cdr";
+   "apply" , "bin_apply" ];;
 
 let make_prologue consts_tbl fvars_tbl =
   let make_primitive_closure (prim, label) =
@@ -91,78 +92,294 @@ user_code_fragment:
 
 ";;
 
+
+
+let labelCounterMl = ref 0 ;;    
+let labelCounterMlInc() = labelCounterMl := !labelCounterMl + 1 ;;
+let labelCounterMlGet() = !labelCounterMl;;
+
+
+let bin_car = (
+  "bin_car:"                                                      ^ " \n" ^(* car primitive *)
+  "   push rbp"                                                   ^ " \n" ^(* save rbp  *)
+  "   mov rbp, rsp"                                               ^ " \n" ^(* move pointer to rsp  *)
+  
+  "   mov rbx, PVAR(0)"                                           ^ " \n" ^(* i=0  *)
+  "   CAR rax, rbx"                                               ^ " \n" ^(* i=0  *)
+  
+  
+  "\nleave \n  ret \n " 
+ 
+)
+
+let bin_cdr = (
+  "bin_cdr:"                                                      ^ " \n" ^(* car primitive *)
+  "   push rbp"                                                   ^ " \n" ^(* save rbp  *)
+  "   mov rbp, rsp"                                               ^ " \n" ^(* move pointer to rsp  *)
+  
+  "   mov rbx, PVAR(0)"                                           ^ " \n" ^(* i=0  *)
+  "   CDR rax, rbx"                                               ^ " \n" ^(* i=0  *)
+  
+  
+  "\nleave \n  ret \n " 
+  
+)
+
+let bin_cons = (
+  "bin_cons:"                                                     ^ " \n" ^(* car primitive *)
+  "   push rbp"                                                   ^ " \n" ^(* save rbp  *)
+  "   mov rbp, rsp"                                               ^ " \n" ^(* move pointer to rsp  *)
+  
+  "   mov rbx, PVAR(0)"                                           ^ " \n" ^(* i=0  *)
+  "   mov rcx, PVAR(1)"                                           ^ " \n" ^(* i=0  *)
+  "   MAKE_PAIR( rax, rbx, rcx )"                                 ^ " \n" ^(* i=0  *)
+  
+  
+  "\nleave \n  ret \n " 
+  
+)
+
+let bin_set_car = (
+  "bin_set_car:"                                                  ^ " \n" ^(* car primitive *)
+  "   push rbp"                                                   ^ " \n" ^(* save rbp  *)
+  "   mov rbp, rsp"                                               ^ " \n" ^(* move pointer to rsp  *)
+  
+  "   mov rbx, PVAR(0)"                                           ^ " \n" ^(* i=0  *)
+  "   mov rcx, PVAR(1)"                                           ^ " \n" ^(* i=0  *)
+  "   add rbx, 1"                                                 ^ " \n" ^(* i=0  *)
+  "   mov [rbx], rcx"                                             ^ " \n" ^(* i=0  *)
+  
+  "   mov rax, SOB_VOID_ADDRESS"                                  ^ " \n" ^(* i=0  *)
+  
+  
+  "\nleave \n  ret \n " 
+  
+)
+
+let bin_set_cdr = (
+  "bin_set_cdr:"                                                  ^ " \n" ^(* car primitive *)
+  "   push rbp"                                                   ^ " \n" ^(* save rbp  *)
+  "   mov rbp, rsp"                                               ^ " \n" ^(* move pointer to rsp  *)
+  
+  "   mov rbx, PVAR(0)"                                           ^ " \n" ^(* i=0  *)
+  "   mov rcx, PVAR(1)"                                           ^ " \n" ^(* i=0  *)
+  "   add rbx, 9"                                                 ^ " \n" ^(* i=0  *)
+  "   mov [rbx], rcx"                                             ^ " \n" ^(* i=0  *)
+  
+  "   mov rax, SOB_VOID_ADDRESS"                                  ^ " \n" ^(* i=0  *)
+  
+  
+  "\nleave \n  ret \n " 
+  
+)
+
+let bin_apply = 
+  labelCounterMlInc();
+  let applyLable = (string_of_int ( labelCounterMlGet() )) in
+  (
+  "bin_apply:"                                                    ^ " \n" ^(* apply primitive *)
+  
+  "   push rbp"                                                   ^ " \n" ^(* save rbp  *)
+  "   mov rbp, rsp"                                               ^ " \n" ^(* move pointer to rsp  *)
+  
+  "   mov r15,SOB_NIL_ADDRESS"                                    ^ " \n" ^(* push MAGIC  *)
+  "   push r15"                                                   ^ " \n" ^(* push MAGIC  *)
+  
+  "   mov r15, qword[rbp+ 8*3 ]"                                  ^ " \n" ^(* r15 =nRands  *)
+  "   add r15, 3"                                                 ^ " \n" ^(* r15 =nRands+3  *)
+  "   shl r15, 3"                                                 ^ " \n" ^(* r15 =(nTPRands+3)*8  *)
+  "   add r15, rbp"                                               ^ " \n" ^(* r15 =(nTPRands+3)*8+rbp  *)
+  
+  "   mov r15, qword[r15]"                                        ^ " \n" ^(* r15 = list input  *)
+  "   mov r8, 0"                                                  ^ " \n" ^(* r8 =list counter  *)
+  
+  
+  
+  "ListLoopPush" ^ applyLable ^ ":"                               ^ " \n" ^
+
+  "   cmp r15, SOB_NIL_ADDRESS"                                   ^ " \n" ^(* r15 is empty?  *)
+  "   je ListLoopExit" ^ applyLable                               ^ " \n" ^     
+  
+  "   CAR r14, r15"                                               ^ " \n" ^(* r14=list[i]  *)
+  "   CDR r15, r15"                                               ^ " \n" ^(* r15=rest list  *)
+  
+  "   push r14"                                                   ^ " \n" ^(* push list[i]  *)
+  "   add r8, 1"                                                  ^ " \n" ^(* counter++  *)
+  
+  "   jmp ListLoopPush" ^ applyLable                              ^ " \n" ^(* if yes continue code *)     
+  
+
+  "ListLoopExit" ^ applyLable ^ ":"                               ^ " \n" ^
+
+
+
+  "   mov r15, rsp"                                               ^ " \n" ^(* r15 = rsp  *)
+  
+  "   mov r9, r8"                                                 ^ " \n" ^(* r9 = list count  *)
+  "   mov r8, 0"                                                  ^ " \n" ^(* r8 = list counter  *)
+  
+
+  "ReverseLoopPush" ^ applyLable ^ ":"                            ^ " \n" ^
+
+  "   cmp r8, r9"                                                 ^ " \n" ^(* end of list?  *)
+  "   je ReverseLoopExit" ^ applyLable                            ^ " \n" ^     
+  
+  "   mov r13, r8"                                                ^ " \n" ^(* r13=i  *)
+  "   shl r13, 3"                                                 ^ " \n" ^(* r14=8*i  *)
+  "   add r13, r15"                                               ^ " \n" ^(* r14=rsp+8*i  *)
+  "   mov r14, qword[r13]"                                        ^ " \n" ^(* r14=list[i]  *)
+  
+  "   push r14"                                                   ^ " \n" ^(* push list[count-i]  *)
+  "   add r8, 1"                                                  ^ " \n" ^(* counter++  *)
+  
+  "   jmp ReverseLoopPush" ^ applyLable                           ^ " \n" ^(* if yes continue code *)     
+  
+
+  "ReverseLoopExit" ^ applyLable ^ ":"                            ^ " \n" ^
+
+
+  "   mov r15, rsp"                                               ^ " \n" ^(* r15 = rsp  *)
+  "   mov r8, 0"                                                  ^ " \n" ^(* r8 = list counter  *)
+  
+  "   mov r13, r9"                                                ^ " \n" ^(* r13=list count  *)
+  "   shl r13, 3"                                                 ^ " \n" ^(* r14=8*list count  *)
+  "   add r13, r15"                                               ^ " \n" ^(* r14=rsp+8*i  *)
+  
+
+  "ReverseLoopCopy" ^ applyLable ^ ":"                            ^ " \n" ^
+
+  "   cmp r8, r9"                                                 ^ " \n" ^(* end of list?  *)
+  "   je CopyLoopExit" ^ applyLable                               ^ " \n" ^     
+  
+  
+  "   mov r14, qword[r15]"                                        ^ " \n" ^(* r14=list[i]  *)
+  "   mov qword[r13], r14"                                        ^ " \n" ^(* r14=list[i]  *)
+  
+  "   add r15, 8"                                                 ^ " \n" ^(* push list[count-i]  *)
+  "   add r13, 8"                                                 ^ " \n" ^(* push list[count-i]  *)
+  "   add r8, 1"                                                  ^ " \n" ^(* counter++  *)
+  
+  "   jmp ReverseLoopCopy" ^ applyLable                           ^ " \n" ^(* if yes continue code *)     
+  
+
+  "CopyLoopExit" ^ applyLable ^ ":"                               ^ " \n" ^
+  "   mov rsp, r15"                                               ^ " \n" ^(* r15 = rsp  *)
+  
+
+
+    
+  
+  "   mov r13, 3"                                                 ^ " \n" ^(* r13 = 3  *)
+  "   shl r13, 3"                                                 ^ " \n" ^(* r13 = 3*8  *)
+  "   add r13, rbp"                                               ^ " \n" ^(* r13 = 3*8+rbp  *)
+  
+  "   mov r8, qword[r13]"                                         ^ " \n" ^(* r13 = n  *)
+  "   add r8, 2"                                                  ^ " \n" ^(* r8 = n+2  *)
+  "   shl r8, 3"                                                  ^ " \n" ^(* r8 = 3*(n+2)  *)
+  "   add r8, rbp"                                                ^ " \n" ^(* r8 = 3*(n+2)+rbp  *)
+  
+  "   add r13, 8"                                                 ^ " \n" ^(* r8 = 4*8+rbp  *)
+  
+
+  "LoopCopyExpr" ^ applyLable ^ ":"                               ^ " \n" ^
+
+  "   cmp r8, r13"                                                ^ " \n" ^(* end of expr?  *)
+  "   je ExprLoopExit" ^ applyLable                               ^ " \n" ^     
+  
+  "   mov r14, qword[r8]"                                         ^ " \n" ^(* r14=expr[n-i]  *)
+  "   push r14"                                                   ^ " \n" ^(* push to stack  *)
+  
+  "   sub r8, 8"                                                  ^ " \n" ^(* i++(going backwords)  *)
+  "   add r9, 1"                                                  ^ " \n" ^(* pushed args++  *)
+  
+  "   jmp LoopCopyExpr" ^ applyLable                              ^ " \n" ^(* if yes continue code *)     
+  
+
+  "ExprLoopExit" ^ applyLable ^ ":"                               ^ " \n" ^
+
+
+
+  "   mov r13, 4"                                                 ^ " \n" ^(* r13 = 3  *)
+  "   shl r13, 3"                                                 ^ " \n" ^(* r13 = 3*8  *)
+  "   add r13, rbp"                                               ^ " \n" ^(* r13 = 3*8+rbp  *)
+  
+  "   push r9"                                                    ^ " \n" ^(* push n+|s| = numArgs*)
+  "   mov rax, qword[r13]"                                        ^ " \n" ^(* rax = proc  *)
+  
+  
+  (* here I copy the part from ApplicTP  *)
+  
+  
+  "   mov sil, byte[rax]"                                         ^ " \n" ^(* check if rator is closure*)
+  "   cmp sil, T_CLOSURE"                                         ^ " \n" ^(* check if rator is closure*)
+  "   jne ApplyError" ^ applyLable                                ^ " \n" ^(* error if no closure *)
+  
+  "   CLOSURE_ENV r9, rax"                                        ^ " \n" ^(* r9 = Env  *)
+  "   push r9"                                                    ^ " \n" ^(* push closure Env*)
+  
+  "   CLOSURE_CODE r8, rax"                                       ^ " \n" ^(* r9 = code  *)
+  "   mov r13, qword[rbp]"                                        ^ " \n" ^(* save old rbp  *)
+  
+  "   mov r10, qword[rbp+8*1]"                                    ^ " \n" ^(* r10 =oldRetAdress  *)
+  "   push r10"                                                   ^ " \n" ^(* push oldRetAdress  *)
+ 
+
+  "   mov r15, qword[rbp+ 8*3 ]"                                  ^ " \n" ^(* r15 =nTPRands  *)
+  "   add r15, 4"                                                 ^ " \n" ^(* r15 =nTPRands+4  *)
+  "   shl r15, 3"                                                 ^ " \n" ^(* r15 =(nTPRands+4)*8  *)
+  "   add r15, rbp"                                               ^ " \n" ^(* r11 =(nTPRands+4)*8+rbp  *)
+  
+  
+  "   mov r14, rbp"                                               ^ " \n" ^(* r14 =(nTPRands+2)*8  *)
+  "   sub r14, 8"                                                 ^ " \n" ^(* r11 =(nTPRands+4)*8+rbp  *)
+ 
+
+
+
+
+  "ApplyRecylingLoop" ^ applyLable ^ ":"                          ^ " \n" ^
+  
+  "   mov r11, qword[r14]"                                        ^ " \n" ^(* r10 =oldRetAdress  *)
+  "   mov [r15], r11"                                             ^ " \n" ^(* r10 =oldRetAdress  *)
+  
+  "   cmp r14, rsp"                                               ^ " \n" ^(* r10 =(nTPRands+2)*8+rsp  *)
+  "   je ApplyEndRecyling" ^ applyLable                           ^ " \n" ^(* error if no closure *)
+  
+  "   sub r14, 8"                                                 ^ " \n" ^(* r10 =oldRetAdress  *)
+  "   sub r15, 8"                                                 ^ " \n" ^(* r10 =oldRetAdress  *)
+  
+ 
+  "   jmp ApplyRecylingLoop"^ applyLable                          ^ " \n" ^(* error if no closure *)
+  
+  "ApplyEndRecyling" ^ applyLable ^ ":"                           ^ " \n" ^
+  "   mov rbp, r13"                                               ^ " \n" ^(* r10 =oldRetAdress  *)
+  
+  "   mov rsp, r15"                                               ^ " \n" ^(* r10 =oldRetAdress  *)
+  
+  
+  "   jmp r8"                                                     ^ " \n" ^(* call closure code*)
+  
+  "ApplyError"  ^ applyLable ^ ":"                                ^ " \n" ^
+
+  "\nleave \n  ret \n " 
+  
+)
+
+
 (* You may populate this variable with a string containing the epilogue.
    You may load it from a file, you may write it here inline, 
    you may just add things to prims.s (which gets catenated with the epilogue variable).
    Whatever floats your boat. You just have to make sure all the required
    primitive procedures are implemented and included in the output assembly. *)
    let epilogue = (
-  "\nleave \n  ret \n "                         ^
-  "bin_car:"                               ^ " \n" ^(* car primitive *)
-  "   push rbp"                                 ^ " \n" ^(* save rbp  *)
-  "   mov rbp, rsp"                             ^ " \n" ^(* move pointer to rsp  *)
-  
-  "   mov rbx, PVAR(0)"                         ^ " \n" ^(* i=0  *)
-  "   CAR rax, rbx"                             ^ " \n" ^(* i=0  *)
-  
-  
   "\nleave \n  ret \n " ^
-  
-  
-  "bin_cdr:"                               ^ " \n" ^(* car primitive *)
-  "   push rbp"                                 ^ " \n" ^(* save rbp  *)
-  "   mov rbp, rsp"                             ^ " \n" ^(* move pointer to rsp  *)
-  
-  "   mov rbx, PVAR(0)"                         ^ " \n" ^(* i=0  *)
-  "   CDR rax, rbx"                             ^ " \n" ^(* i=0  *)
-  
-  
-  "\nleave \n  ret \n " ^
-  
-  
-  "bin_cons:"                               ^ " \n" ^(* car primitive *)
-  "   push rbp"                                 ^ " \n" ^(* save rbp  *)
-  "   mov rbp, rsp"                             ^ " \n" ^(* move pointer to rsp  *)
-  
-  "   mov rbx, PVAR(0)"                         ^ " \n" ^(* i=0  *)
-  "   mov rcx, PVAR(1)"                         ^ " \n" ^(* i=0  *)
-  "   MAKE_PAIR( rax, rbx, rcx )"                             ^ " \n" ^(* i=0  *)
-  
-  
-  "\nleave \n  ret \n " ^
-  
-  
-  "bin_set_car:"                               ^ " \n" ^(* car primitive *)
-  "   push rbp"                                 ^ " \n" ^(* save rbp  *)
-  "   mov rbp, rsp"                             ^ " \n" ^(* move pointer to rsp  *)
-  
-  "   mov rbx, PVAR(0)"                         ^ " \n" ^(* i=0  *)
-  "   mov rcx, PVAR(1)"                         ^ " \n" ^(* i=0  *)
-  "   add rbx, 1"                         ^ " \n" ^(* i=0  *)
-  "   mov [rbx], rcx"                         ^ " \n" ^(* i=0  *)
-  
-  "   mov rax, SOB_VOID_ADDRESS"                         ^ " \n" ^(* i=0  *)
-  
-  
-  "\nleave \n  ret \n " ^
-  
-  
-  "bin_set_cdr:"                               ^ " \n" ^(* car primitive *)
-  "   push rbp"                                 ^ " \n" ^(* save rbp  *)
-  "   mov rbp, rsp"                             ^ " \n" ^(* move pointer to rsp  *)
-  
-  "   mov rbx, PVAR(0)"                         ^ " \n" ^(* i=0  *)
-  "   mov rcx, PVAR(1)"                         ^ " \n" ^(* i=0  *)
-  "   add rbx, 9"                         ^ " \n" ^(* i=0  *)
-  "   mov [rbx], rcx"                         ^ " \n" ^(* i=0  *)
-  
-  "   mov rax, SOB_VOID_ADDRESS"                         ^ " \n" ^(* i=0  *)
-  
-  
-  "\nleave \n  ret \n " 
-  
-  
-  );;
+  bin_car         ^ " \n" ^
+  bin_cdr         ^ " \n" ^
+  bin_cons        ^ " \n" ^
+  bin_set_car     ^ " \n" ^
+  bin_set_cdr     ^ " \n" ^
+  bin_apply       ^ " \n" 
+   );;
   
 
 
