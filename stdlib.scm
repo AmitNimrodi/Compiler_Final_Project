@@ -20,8 +20,8 @@
                               (if (null? l)
                                   acc
                                   (if (pair? l)
-                                      (fold-left-loop f (apply f acc `(,(car l))) (cdr l) )
-                                      (fold-left-loop f (apply f acc `(,l)) '() )
+                                      (fold-left-loop f (f acc (car l)) (cdr l) )
+                                      (fold-left-loop f (f acc l) '() )
                                       )))))
     fold-left-loop)))
 
@@ -34,9 +34,9 @@
                             (if (null? l)
                                 acc
                                 (if (pair? l)
-                                    (fold-right-loop f (apply f (car l) `(,acc)) (cdr l))
-                                    (fold-right-loop f (apply f l `(,acc)) '())
-                                 )))))
+                                    (f (car l) (fold-right-loop f acc (cdr l) ))
+                                    (f l (fold-right-loop f acc '() )))
+                                 ))))
     fold-right-loop)))
 
 ;;tests:
@@ -50,17 +50,10 @@
         (apply apply))
     (letrec ((cons*-loop (lambda (el . ls)
                            (if (null? el)
-                               '()
-                               (if (null? ls)
-                                   el
+                               ls
                                    (fold-right
-                                      (lambda (x y)
-                                        (if (pair? y)
-                                            (append x y)
-                                            (if (null? y)
-                                                x
-                                            (append `(,y) x))))
-                                      '() (append ls el)))))))
+                                      append
+                                      '() (cons el ls))))))
              cons*-loop)))
 
 
