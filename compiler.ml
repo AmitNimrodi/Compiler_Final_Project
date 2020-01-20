@@ -381,16 +381,16 @@ let bin_apply =
   bin_apply       ^ " \n" 
    );;
   
+  
+  
+  
 
-
-(*exception X_missing_input_file;;
+exception X_missing_input_file;;
 
 try
   let infile = Sys.argv.(1) in
   let code =  (file_to_string "stdlib.scm") ^ (file_to_string infile) in
-   let asts = string_to_asts code in *)
-  let asts = string_to_asts "((lambda (x . y) 
-              ((lambda (w . e) (+ x (car e)))1 2))3 4)" in
+  let asts = string_to_asts code in
   let consts_tbl = Code_Gen.make_consts_tbl asts in
   let fvars_tbl = Code_Gen.make_fvars_tbl asts in
   let generate = Code_Gen.generate consts_tbl fvars_tbl in
@@ -404,7 +404,7 @@ try
   let provided_primitives = file_to_string "prims.s" in
                    
   print_string ((make_prologue consts_tbl fvars_tbl)  ^
-                  code_fragment ^ clean_exit ^
+                  code_fragment ^clean_exit ^
                     provided_primitives ^ "\n" ^ epilogue)
-;;
-(* with Invalid_argument(x) -> raise X_missing_input_file;; *)
+
+with Invalid_argument(x) -> raise X_missing_input_file;;

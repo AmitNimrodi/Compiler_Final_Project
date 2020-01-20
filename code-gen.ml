@@ -253,12 +253,31 @@ module Code_Gen : CODE_GEN = struct
                                             (sexpr, (offset, "MAKE_LITERAL_CHAR(" ^ (string_of_int(Char.code valu)) ^")"))
     | Sexpr(String(str))                 -> let len = (String.length str) in
                                             let offset = getAndInc((len + num_char_size)) in
-                                            (sexpr, (offset, "MAKE_LITERAL_STRING \"" ^ str^"\""))
+                                            let stri = stringMaker str in
+                                            (sexpr, (offset, "MAKE_LITERAL_STRING " ^ stri ^""))
     | Sexpr(Symbol(str))                 -> let offset = getAndInc(num_char_size) in
                                             (sexpr, (offset, "MAKE_LITERAL_SYMBOL(const_tbl+" ^ (symbolTupleMaker sexpr tuplesList) ^ ")"))
     | Sexpr(Pair(first,second))          -> (pairTupleMaker first second tuplesList taggedCouplesList)
     | any                                -> raise X_syntax_error
   
+  
+  and charListString str len i ls =
+    ( if (i < len)
+      then (charListString str len (i+1) (str.[i] :: ls ) )
+      else ls )
+
+  and charListMapping ls =
+    match ls with
+    | [] -> ""
+    | a :: [] -> (string_of_int a)
+    | a :: b  -> (string_of_int a) ^ "," ^ (charListMapping b)
+
+  and stringMaker str =
+    let chList = ( charListString str (String.length str) 0 [] ) in
+    let mapChList = List.map Char.code (List.rev chList) in
+    ( charListMapping mapChList )
+    
+
   and pairTupleMaker first second tuplesList taggedCouplesList = 
     let offsetA = 
       (let checkerA =
@@ -793,6 +812,9 @@ and simple_genHelper consts fvars bodyOfLambda envLayer =
 
    
   "   mov r9, qword[rbp + 8*3]"                                   ^ " \n" ^
+   
+  "   add r9, 1"                                   ^ " \n" ^
+ 
   "   shl r9, 3"                                                  ^ " \n" ^
   "   MALLOC r9, r9"                                              ^ " \n" ^(* param vector malloced  *)
   "   mov qword[r10], r9"                                         ^ " \n" ^(* [ExtEnv[0]]=r9  *)
@@ -804,7 +826,10 @@ and simple_genHelper consts fvars bodyOfLambda envLayer =
 
   "   mov r11, 0"                                                 ^ " \n" ^(* i=0  *)
   "   mov r13, qword[rbp + 8*3]"                                  ^ " \n" ^(* r13=paramcount  *)
+   
+  "   add r13, 1"                                   ^ " \n" ^
  
+
   "   mov r14, rbp"                                               ^ " \n" ^(* Env in stack  *)
   "   add r14, 8*4"                                               ^ " \n" ^(* Env in stack  *)
   "   mov r8, qword[r10]"                                         ^ " \n" ^(* ExtEnv malloced  *)
@@ -947,6 +972,9 @@ let expectedArgs = ((List.length lambdaParams)+1) in
 
  
 "   mov r9, qword[rbp + 8*3]"                                   ^ " \n" ^
+ 
+"   add r9, 1"                                   ^ " \n" ^
+ 
 "   shl r9, 3"                                                  ^ " \n" ^
 "   MALLOC r9, r9"                                              ^ " \n" ^(* param vector malloced  *)
 "   mov qword[r10], r9"                                         ^ " \n" ^(* [ExtEnv[0]]=r9  *)
@@ -958,6 +986,8 @@ let expectedArgs = ((List.length lambdaParams)+1) in
 
 "   mov r11, 0"                                                 ^ " \n" ^(* i=0  *)
 "   mov r13, qword[rbp + 8*3]"                                  ^ " \n" ^(* r13=paramcount  *)
+ 
+"   add r13, 1"                                   ^ " \n" ^
 
 "   mov r14, rbp"                                               ^ " \n" ^(* Env in stack  *)
 "   add r14, 8*4"                                               ^ " \n" ^(* Env in stack  *)
@@ -1035,7 +1065,6 @@ let expectedArgs = ((List.length lambdaParams)+1) in
  "   mov qword[r11], r10"                                        ^ " \n" ^(* r13=paramcount  *)
 "   sub r11, 8"                                                 ^ " \n" ^(* i++  *)
 "   sub r15, 8"                                                 ^ " \n" ^(* i++  *)
-"   mov qword[rsp+8*5], r10"                                        ^ " \n" ^(* r13=paramcount  *)
 
 
 "StackLoop"     ^ (string_of_int optLabel) ^ ":"                ^ " \n" ^
@@ -1068,11 +1097,14 @@ let expectedArgs = ((List.length lambdaParams)+1) in
 
 "InserNil"     ^(string_of_int optLabel) ^ ":"                  ^ " \n" ^
 
+
+ 
 "   add r15, 3"                                                 ^ " \n" ^(* r13=paramcount  *)
 "   shl r15, 3"                                                 ^ " \n" ^(* r13=paramcount  *)
 "   add r15, rsp"                                               ^ " \n" ^(* r13=paramcount  *)
 
-"   mov qword[r15], SOB_NIL_ADDRESS"                            ^ " \n" ^(* r13=paramcount  *)
+"   mov r14, SOB_NIL_ADDRESS"                            ^ " \n" ^(* r13=paramcount  *)
+"   mov qword[r15], r14"                            ^ " \n" ^(* r13=paramcount  *)
 "   jmp LcodeEnd" ^(string_of_int optLabel)                     ^ " \n" ^
 
 
