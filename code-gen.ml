@@ -49,12 +49,6 @@ module Code_Gen : CODE_GEN = struct
   let num_size = (type_size + word_size) ;;
   let char_size = (type_size + type_size) ;;
   let pair_size = (2*word_size + type_size) ;;
-  let tagCounter = ref 1 ;;
-  let tagCounterInc x = tagCounter := !tagCounter + x;;
-  let getAndIncTagCounter x = 
-    let valu = !tagCounter in
-    (tagCounterInc x);
-    valu;;
   let byteCounter = ref 6 ;;    (* we start with 6 because of the basics table. *)
   let byteCounterInc x = byteCounter := !byteCounter + x ;;
   let getAndInc x =
@@ -109,11 +103,16 @@ module Code_Gen : CODE_GEN = struct
   ;;
   
   let rec const_table_maker listOfExprs = 
-    
+    (*
     let constSexprsList       = ( findConsts listOfExprs ) in
     let fixedTagsList         = ( tagFixConstList constSexprsList ) in
     let tagsCouplesList       = ( findTaggedCouplesList fixedTagsList [] ) in
     let dupelessConstList     = ( cleanDupes fixedTagsList ) in
+    *)
+    let constSexprsList       = ( findConsts listOfExprs ) in
+    (*let fixedTagsList         = ( tagFixConstList constSexprsList ) in*)
+    let tagsCouplesList       = ( findTaggedCouplesList constSexprsList [] ) in
+    let dupelessConstList     = ( cleanDupes constSexprsList ) in
     let extendedList          = ( extendList dupelessConstList) in
     let dupelessExtendedList  = ( cleanDupes extendedList ) in
     let basicList             = [ (Void, (0, "MAKE_VOID"));                  (Sexpr(Nil), (1, "MAKE_NIL"));
@@ -130,6 +129,9 @@ module Code_Gen : CODE_GEN = struct
         match a with 
         | Sexpr(TaggedSexpr(name,valu)) ->
             let updatedAcc = ( acc @ [(name, valu)] @ (scanTheTaggedSexpr valu []) ) in 
+                             ( findTaggedCouplesList b updatedAcc )
+        | Sexpr(Pair(first,second))     -> 
+            let updatedAcc = ( acc @ ( scanPairInsideTagged first second ) ) in
                              ( findTaggedCouplesList b updatedAcc )
         | Sexpr(something)              -> ( findTaggedCouplesList b acc ) 
         | any                           -> raise X_syntax_error
@@ -157,7 +159,7 @@ module Code_Gen : CODE_GEN = struct
   [Sexpr (TaggedSexpr ("a", Number (Int 2)));
    Sexpr (Pair (TaggedSexpr ("a", Bool true), Pair (TagRef "a", Nil)))]
    *)
-  
+(*   
   and tagFixConstList constSexprsList = 
     match constSexprsList with
     | [] -> []
@@ -190,7 +192,7 @@ module Code_Gen : CODE_GEN = struct
       | any -> raise X_syntax_error
     ) in
     (Pair(fixFirst,fixSecond))
-  
+   *)
   and findConsts listOfExprs = 
   match listOfExprs with
     | []     -> []
@@ -414,6 +416,7 @@ module Code_Gen : CODE_GEN = struct
 
 
 
+
   
   (*       HERE WE ARE FINISHED WITH THE CONST_TABLE!!!    *)
   (*       HERE WE ARE FINISHED WITH THE CONST_TABLE!!!    *)
@@ -519,14 +522,23 @@ let labelCounter = ref 0 ;;
 let labelCounterInc() = labelCounter := !labelCounter + 1 ;;
 let labelCounterGet() = !labelCounter;;
 
-let rec address_in_const_table to_find consts =
+
+let rec address_in_const_table_helper to_find consts =
   match consts with
   | [] -> raise X_syntax_error
   | (elem , (address , str)) :: resConsts -> (
         if (constsEqualizer to_find elem)
         then address
-        else (address_in_const_table to_find resConsts) )
+        else (address_in_const_table_helper to_find resConsts) )
   ;;
+
+
+let rec address_in_const_table to_find consts =
+  match to_find with
+  | Sexpr( TaggedSexpr ( _ , innerSexpr ) ) -> 
+      (address_in_const_table_helper (Sexpr(innerSexpr)) consts)
+  | any -> 
+      (address_in_const_table_helper to_find consts)
 
 let rec address_in_fvar_table to_find fvars =
   match fvars with

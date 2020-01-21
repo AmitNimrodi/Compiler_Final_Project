@@ -381,58 +381,59 @@ let bin_apply =
   bin_apply       ^ " \n" 
    );;
   
-  let tagCounter = ref 1 ;;
-  let tagCounterInc x = tagCounter := !tagCounter + x;;
-  let getAndIncTagCounter x = 
-    let valu = !tagCounter in
-    (tagCounterInc x);
-    valu;;
   
-
-let rec renameAsts asts = 
-match asts with
-| []     -> []
-| a :: b -> ( List.append [(constTagScanner a)] (renameAsts b) )
-
-and constTagScanner ast = 
-    match ast with
-    | Const'(Sexpr(something))                  -> ( Const'(Sexpr(fixThisAst something (string_of_int(getAndIncTagCounter 1)))) )
-    | Seq'(listOfexprs)                         -> ( Seq'(seqConstScanTags listOfexprs) )
-    | If'(test,dit,dif)                         -> ( If'((constTagScanner test) ,(constTagScanner dit) ,(constTagScanner dif)) )
-    | Or'(listOfexprs)                          -> ( Or'(seqConstScanTags listOfexprs) )
-    | Var'(var)                                 -> ast
-    | Box'(name)                                -> ast
-    | BoxGet'(name)                             -> ast
-    | BoxSet'(name,valu)                        -> ( BoxSet'(name, (constTagScanner valu)) )
-    | Set'(vari, valu)                          -> ( Set'(vari, (constTagScanner valu)) ) (*   set is expr*expr, but we look at it as a var*expr   *)
-    | Def'(head, valu)                          -> ( Def'(head, (constTagScanner valu)) ) (*   def is expr*expr, but we look at it as a var*expr   *)
-    | LambdaSimple'(lambdaParams, bodyOfLambda) -> ( LambdaSimple'(lambdaParams, (constTagScanner bodyOfLambda)) )
-    | LambdaOpt'(lambdaParams,vs, bodyOfLambda) -> ( LambdaOpt'(lambdaParams,vs, (constTagScanner bodyOfLambda)) )
-    | Applic'(rator, rands)                     -> ( Applic'( (constTagScanner rator), (seqConstScanTags rands) ) )
-    | ApplicTP'(rator, rands)                   -> ( ApplicTP'( (constTagScanner rator), (seqConstScanTags rands) ) )
-    | any                                       -> ast 
-    
-    
-and seqConstScanTags listOfExprs = 
-  match listOfExprs with
-  | []     -> []
-  | a :: b -> ( List.append [(constTagScanner a)] (seqConstScanTags b) )
-
-
-and fixThisAst a fixer =
-  match a with
-  | Pair(first,second)  -> (pairTagFixerAst first second fixer) 
-  | TaggedSexpr(x,valu) -> (TaggedSexpr((x^fixer), (fixThisAst valu fixer)))
-  | TagRef(x)           -> (TagRef(x^fixer))
-  | any                 -> a
-
-
-and pairTagFixerAst first second fixer = 
-  let fixedFirst = (fixThisAst first fixer) in
-  let fixedSecond = (fixThisAst second fixer) in
-  (Pair(fixedFirst,fixedSecond))
-  ;;
   
+   let tagCounter = ref 1 ;;
+   let tagCounterInc x = tagCounter := !tagCounter + x;;
+   let getAndIncTagCounter x = 
+     let valu = !tagCounter in
+     (tagCounterInc x);
+     valu;;
+   
+ 
+ let rec renameAsts asts = 
+ match asts with
+ | []     -> []
+ | a :: b -> ( List.append [(constTagScanner a)] (renameAsts b) )
+ 
+ and constTagScanner ast = 
+     match ast with
+     | Const'(Sexpr(something))                  -> ( Const'(Sexpr(fixThisAst something (string_of_int(getAndIncTagCounter 1)))) )
+     | Seq'(listOfexprs)                         -> ( Seq'(seqConstScanTags listOfexprs) )
+     | If'(test,dit,dif)                         -> ( If'((constTagScanner test) ,(constTagScanner dit) ,(constTagScanner dif)) )
+     | Or'(listOfexprs)                          -> ( Or'(seqConstScanTags listOfexprs) )
+     | Var'(var)                                 -> ast
+     | Box'(name)                                -> ast
+     | BoxGet'(name)                             -> ast
+     | BoxSet'(name,valu)                        -> ( BoxSet'(name, (constTagScanner valu)) )
+     | Set'(vari, valu)                          -> ( Set'(vari, (constTagScanner valu)) ) (*   set is expr*expr, but we look at it as a var*expr   *)
+     | Def'(head, valu)                          -> ( Def'(head, (constTagScanner valu)) ) (*   def is expr*expr, but we look at it as a var*expr   *)
+     | LambdaSimple'(lambdaParams, bodyOfLambda) -> ( LambdaSimple'(lambdaParams, (constTagScanner bodyOfLambda)) )
+     | LambdaOpt'(lambdaParams,vs, bodyOfLambda) -> ( LambdaOpt'(lambdaParams,vs, (constTagScanner bodyOfLambda)) )
+     | Applic'(rator, rands)                     -> ( Applic'( (constTagScanner rator), (seqConstScanTags rands) ) )
+     | ApplicTP'(rator, rands)                   -> ( ApplicTP'( (constTagScanner rator), (seqConstScanTags rands) ) )
+     | any                                       -> ast 
+     
+     
+ and seqConstScanTags listOfExprs = 
+   match listOfExprs with
+   | []     -> []
+   | a :: b -> ( List.append [(constTagScanner a)] (seqConstScanTags b) )
+ 
+ 
+ and fixThisAst a fixer =
+   match a with
+   | Pair(first,second)  -> (pairTagFixerAst first second fixer) 
+   | TaggedSexpr(x,valu) -> (TaggedSexpr((x^fixer), (fixThisAst valu fixer)))
+   | TagRef(x)           -> (TagRef(x^fixer))
+   | any                 -> a
+ 
+ 
+ and pairTagFixerAst first second fixer = 
+   let fixedFirst = (fixThisAst first fixer) in
+   let fixedSecond = (fixThisAst second fixer) in
+   (Pair(fixedFirst,fixedSecond))
+   ;;
 
 
 exception X_missing_input_file;;
@@ -440,8 +441,7 @@ exception X_missing_input_file;;
 try
   let infile = Sys.argv.(1) in
   let code =  (file_to_string "stdlib.scm") ^ (file_to_string infile) in
-  let asts = string_to_asts code in
-  let asts = renameAsts asts in 
+  let asts = renameAsts (string_to_asts code) in
   let consts_tbl = Code_Gen.make_consts_tbl asts in
   let fvars_tbl = Code_Gen.make_fvars_tbl asts in
   let generate = Code_Gen.generate consts_tbl fvars_tbl in
@@ -452,18 +452,10 @@ try
   (* clean_exit contains instructions to clean the dummy stack
      and return exit code 0 ("all's well") from procedure main. *)
   let clean_exit = "\n\n\tmov rax, 0\n\tadd rsp, 4*8\n\tpop rbp\n\tret\n\n" in
-  
-  print_string ((make_prologue consts_tbl fvars_tbl)  ^
-                  code_fragment ^ clean_exit ^
-                         "\n" ^ epilogue)
-;;
-(*
   let provided_primitives = file_to_string "prims.s" in
                    
   print_string ((make_prologue consts_tbl fvars_tbl)  ^
                   code_fragment ^clean_exit ^
                     provided_primitives ^ "\n" ^ epilogue)
-;;
-*)
 
-(* with Invalid_argument(x) -> raise X_missing_input_file;; *)
+with Invalid_argument(x) -> raise X_missing_input_file;;
