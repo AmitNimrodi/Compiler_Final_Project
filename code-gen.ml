@@ -108,11 +108,16 @@ module Code_Gen : CODE_GEN = struct
   ;;
   
   let rec const_table_maker listOfExprs = 
-    
+    (*
     let constSexprsList       = ( findConsts listOfExprs ) in
     let fixedTagsList         = ( tagFixConstList constSexprsList ) in
     let tagsCouplesList       = ( findTaggedCouplesList fixedTagsList [] ) in
     let dupelessConstList     = ( cleanDupes fixedTagsList ) in
+    *)
+    let constSexprsList       = ( findConsts listOfExprs ) in
+    (*let fixedTagsList         = ( tagFixConstList constSexprsList ) in*)
+    let tagsCouplesList       = ( findTaggedCouplesList constSexprsList [] ) in
+    let dupelessConstList     = ( cleanDupes constSexprsList ) in
     let extendedList          = ( extendList dupelessConstList) in
     let dupelessExtendedList  = ( cleanDupes extendedList ) in
     let basicList             = [ (Void, (0, "MAKE_VOID"));                  (Sexpr(Nil), (1, "MAKE_NIL"));
@@ -129,6 +134,9 @@ module Code_Gen : CODE_GEN = struct
         match a with 
         | Sexpr(TaggedSexpr(name,valu)) ->
             let updatedAcc = ( acc @ [(name, valu)] @ (scanTheTaggedSexpr valu []) ) in 
+                             ( findTaggedCouplesList b updatedAcc )
+        | Sexpr(Pair(first,second))     -> 
+            let updatedAcc = ( acc @ ( scanPairInsideTagged first second ) ) in
                              ( findTaggedCouplesList b updatedAcc )
         | Sexpr(something)              -> ( findTaggedCouplesList b acc ) 
         | any                           -> raise X_syntax_error

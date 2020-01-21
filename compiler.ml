@@ -401,10 +401,18 @@ try
   (* clean_exit contains instructions to clean the dummy stack
      and return exit code 0 ("all's well") from procedure main. *)
   let clean_exit = "\n\n\tmov rax, 0\n\tadd rsp, 4*8\n\tpop rbp\n\tret\n\n" in
+  
+  print_string ((make_prologue consts_tbl fvars_tbl)  ^
+                  code_fragment ^ clean_exit ^
+                         "\n" ^ epilogue)
+;;
+(*
   let provided_primitives = file_to_string "prims.s" in
                    
   print_string ((make_prologue consts_tbl fvars_tbl)  ^
                   code_fragment ^ clean_exit ^
                     provided_primitives ^ "\n" ^ epilogue)
 ;;
+*)
+
 (* with Invalid_argument(x) -> raise X_missing_input_file;; *)
