@@ -46,8 +46,15 @@ module Code_Gen : CODE_GEN = struct
 
   let type_size = 1 ;;
   let word_size = 8 ;;
-  let num_char_size = (type_size + word_size) ;;
+  let num_size = (type_size + word_size) ;;
+  let char_size = (type_size + type_size) ;;
   let pair_size = (2*word_size + type_size) ;;
+  let tagCounter = ref 1 ;;
+  let tagCounterInc x = tagCounter := !tagCounter + x;;
+  let getAndIncTagCounter x = 
+    let valu = !tagCounter in
+    (tagCounterInc x);
+    valu;;
   let byteCounter = ref 6 ;;    (* we start with 6 because of the basics table. *)
   let byteCounterInc x = byteCounter := !byteCounter + x ;;
   let getAndInc x =
@@ -102,16 +109,11 @@ module Code_Gen : CODE_GEN = struct
   ;;
   
   let rec const_table_maker listOfExprs = 
-    (*
+    
     let constSexprsList       = ( findConsts listOfExprs ) in
     let fixedTagsList         = ( tagFixConstList constSexprsList ) in
     let tagsCouplesList       = ( findTaggedCouplesList fixedTagsList [] ) in
     let dupelessConstList     = ( cleanDupes fixedTagsList ) in
-    *)
-    let constSexprsList       = ( findConsts listOfExprs ) in
-    (*let fixedTagsList         = ( tagFixConstList constSexprsList ) in*)
-    let tagsCouplesList       = ( findTaggedCouplesList constSexprsList [] ) in
-    let dupelessConstList     = ( cleanDupes constSexprsList ) in
     let extendedList          = ( extendList dupelessConstList) in
     let dupelessExtendedList  = ( cleanDupes extendedList ) in
     let basicList             = [ (Void, (0, "MAKE_VOID"));                  (Sexpr(Nil), (1, "MAKE_NIL"));
@@ -128,9 +130,6 @@ module Code_Gen : CODE_GEN = struct
         match a with 
         | Sexpr(TaggedSexpr(name,valu)) ->
             let updatedAcc = ( acc @ [(name, valu)] @ (scanTheTaggedSexpr valu []) ) in 
-                             ( findTaggedCouplesList b updatedAcc )
-        | Sexpr(Pair(first,second))     -> 
-            let updatedAcc = ( acc @ ( scanPairInsideTagged first second ) ) in
                              ( findTaggedCouplesList b updatedAcc )
         | Sexpr(something)              -> ( findTaggedCouplesList b acc ) 
         | any                           -> raise X_syntax_error
@@ -247,17 +246,17 @@ module Code_Gen : CODE_GEN = struct
   (* TODO: FIX : RUN OVER THE TUPLE LIST AT THE END , LOOK FOR TAG REFS, AND FIX THEIR "CONST TABL+ 0 " TO THEIR REAL OFFSET *)
   and tupleMaker sexpr tuplesList taggedCouplesList = 
     match sexpr with
-    | Sexpr(Number(Int(valu)))           -> let offset = getAndInc(num_char_size) in 
+    | Sexpr(Number(Int(valu)))           -> let offset = getAndInc(num_size) in 
                                             (sexpr, (offset, "MAKE_LITERAL_INT(" ^ (string_of_int valu) ^")"))
-    | Sexpr(Number(Float(valu)))         -> let offset = getAndInc(num_char_size) in 
+    | Sexpr(Number(Float(valu)))         -> let offset = getAndInc(num_size) in 
                                             (sexpr, (offset, "MAKE_LITERAL_FLOAT(" ^ (string_of_float valu) ^")"))
-    | Sexpr(Char(valu))                  -> let offset = getAndInc(num_char_size) in 
+    | Sexpr(Char(valu))                  -> let offset = getAndInc(char_size) in 
                                             (sexpr, (offset, "MAKE_LITERAL_CHAR(" ^ (string_of_int(Char.code valu)) ^")"))
     | Sexpr(String(str))                 -> let len = (String.length str) in
-                                            let offset = getAndInc((len + num_char_size)) in
+                                            let offset = getAndInc((len + num_size)) in
                                             let stri = stringMaker str in
                                             (sexpr, (offset, "MAKE_LITERAL_STRING " ^ stri ^""))
-    | Sexpr(Symbol(str))                 -> let offset = getAndInc(num_char_size) in
+    | Sexpr(Symbol(str))                 -> let offset = getAndInc(num_size) in
                                             (sexpr, (offset, "MAKE_LITERAL_SYMBOL(const_tbl+" ^ (symbolTupleMaker sexpr tuplesList) ^ ")"))
     | Sexpr(Pair(first,second))          -> (pairTupleMaker first second tuplesList taggedCouplesList)
     | any                                -> raise X_syntax_error
@@ -599,8 +598,24 @@ and varParam_genHelper consts fvars mino envLayer =
   
 
 and varBound_genHelper consts fvars majo mino envLayer =
-let minor = (string_of_int mino) in   
-let major = (string_of_int majo) in   
+  let minor = (string_of_int mino) in   
+  let major = (string_of_int majo) in   
+(*   
+  "   mov r15, 2"                                                 ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
+  "   shl r15, 3"                                                 ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
+  "   add r15, rbp"                                               ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
+  "   mov rbx, qword[r15]"                                        ^ " \n" ^
+  
+  "   mov r15, " ^ major                                          ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
+  "   shl r15, 3"                                                 ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
+  "   add r15, rbx"                                               ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
+  "   mov rbx, qword[r15]"                                        ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
+  
+  "   mov r15, " ^ minor                                          ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
+  "   shl r15, 3"                                                 ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
+  "   add r15, rbx"                                               ^ " \n" ^   (*rax holds the value of evaluated VALU parameter *)
+  "   mov rax, qword[r15]"                                        ^ " \n" 
+   *)
 "   mov rax, qword[rbp+8*2]"                                      ^ " \n" ^
 "   mov rax, qword[rax+8*"^ major ^ "]"                           ^ " \n" ^
 "   mov rax, qword[rax+8*"^ minor ^ "]"                           ^ " \n" 
