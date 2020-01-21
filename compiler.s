@@ -10,6 +10,7 @@
 %define T_CLOSURE 9
 %define T_PAIR 10
 	
+
 %define CHAR_NUL 0
 %define CHAR_TAB 9
 %define CHAR_NEWLINE 10
@@ -148,12 +149,13 @@
 		%2
 %endmacro
 
-%macro MAKE_LITERAL_STRING 1
+%macro MAKE_LITERAL_STRING 0-*
 	db T_STRING
-	dq (%%end_str - %%str)
-	%%str:
-	db %1
-	%%end_str:
+		dq %0
+	%rep %0
+		db %1
+		%rotate 1
+	%endrep
 %endmacro
 
 %define MAKE_LITERAL_INT(val) MAKE_LITERAL T_INTEGER, dq val
