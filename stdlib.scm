@@ -51,11 +51,19 @@
     (letrec ((cons*-loop (lambda (el . ls)
                            (if (null? el)
                                ls
-                                   (fold-right
-                                      append
-                                      '() (cons el ls))))))
+                               (consHelper (cons el ls))))))
              cons*-loop)))
 
+(define consHelper
+  (let ((null? null?)
+        (car car) (cdr cdr)
+        (apply apply))
+    (letrec ((cons*help (lambda (ac)
+                          (if (eq? (cdr ac) '())
+                              (car ac)
+                              (cons (car ac) (cons*help (cdr ac)))))))
+      cons*help)))
+                              
 
 (define append
   (let ((null? null?)
