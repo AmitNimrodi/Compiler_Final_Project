@@ -269,6 +269,7 @@ and tag_defineHelper head tail =
   let varName = p_expr head in
   match varName with
   | Var(a) -> Def( varName , p_expr tail )
+  (* | Symbol(a) -> Def( varName , p_expr tail ) *)
   | _ -> raise X_syntax_error 
 
 

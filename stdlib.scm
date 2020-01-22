@@ -11,7 +11,7 @@
 				   (apply map f (cdr l) (map-loop cdr ls))))))))
       map-loop)))
 
-;(fold-left - 0 '(1 5 10)) ---> -16
+
 (define fold-left
   (let ((null? null?)
         (car car) (cdr cdr)
@@ -25,7 +25,7 @@
                                       )))))
     fold-left-loop)))
 
-;(fold-right - 0 '(1 5 10)) ---> 6
+
 (define fold-right
   (let ((null? null?)
         (car car) (cdr cdr)
@@ -39,11 +39,6 @@
                                  ))))
     fold-right-loop)))
 
-;;tests:
-;(cons* '()) ---> ()
-;(cons* '(a b)) ---> (a b)
-;(cons* 'a 'b 'c) ---> (a b . c)
-;(cons* 'a 'b '(c d)) ---> (a b c d)
 (define cons*
   (let ((null? null?)
         (car car) (cdr cdr)
@@ -63,7 +58,7 @@
                               (car ac)
                               (cons (car ac) (cons*help (cdr ac)))))))
       cons*help)))
-                              
+
 
 (define append
   (let ((null? null?)
@@ -101,6 +96,7 @@
       (if (null? y)
 	  (make-string x #\nul)
 	  (make-string x (car y))))))
+
 
 (define not
   (lambda (x) (if x #f #t)))

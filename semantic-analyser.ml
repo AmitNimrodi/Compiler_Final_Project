@@ -567,3 +567,52 @@ module Semantics : SEMANTICS = struct
   open Tag_Parser;;
   open Semantics;;
   
+
+
+
+
+  (*
+  run_semantics
+  (
+    tag_parse_expression
+    (
+      read_sexpr
+      
+        "(define test (lambda (x) ((lambda (y) (cons (lambda () x ) 
+                                              (cons (set! x y) '() ) ) ) 1)))"
+      
+    )
+  )
+;;
+run_semantics
+  (
+    Def (Var "test",
+ LambdaSimple (["x"],
+  Applic
+    (LambdaSimple (["y"],
+      Applic (Var "cons",
+        [LambdaSimple ([],  Var "x");
+         Applic (Var "cons",
+          [Set (Var "x", Var "y"); Const (Sexpr Nil)])])),
+     [Const (Sexpr (Number (Int 1)))])))
+  )
+;;
+
+
+
+
+Def (Var "test",
+ LambdaSimple (["x"],
+  Applic
+    (LambdaSimple (["y"],
+      Applic (Var "cons",
+        [LambdaSimple ([],  Var "x");
+         Applic (Var "cons",
+          [Set (Var "x", Var "y"); Const (Sexpr Nil)])])),
+     [Const (Sexpr (Number (Int 1)))])))
+
+
+
+  *)
+
+  

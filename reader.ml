@@ -372,7 +372,7 @@ let p_lineComment =
 let rec p_sexpr str = 
   let cfg =  pack (disj_list[ 
     (not_followed_by (caten p_skip boolCreator)     p_symbolChar);
-    (not_followed_by (caten p_skip charCreator)     p_symbolChar);
+    (caten p_skip charCreator);
     (not_followed_by (caten p_skip numbersCreator)  p_symbolChar); 
     (not_followed_by (caten p_skip stringCreator)   p_symbolChar);                                                                            
     (not_followed_by (caten p_skip symbolCreator )  p_symbolChar);

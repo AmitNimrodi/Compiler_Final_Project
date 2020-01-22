@@ -128,6 +128,45 @@ module Code_Gen : CODE_GEN = struct
     ( firstEl @ secondEl )
   
   
+  (* TEST:
+  
+  [Sexpr (TaggedSexpr ("a", Number (Int 2)));
+   Sexpr (Pair (TaggedSexpr ("a", Bool true), Pair (TagRef "a", Nil)))]
+   *)
+(*   
+  and tagFixConstList constSexprsList = 
+    match constSexprsList with
+    | [] -> []
+    | a :: b -> (
+      match a with 
+      (*| Sexpr(TaggedSexpr(x,valu)) -> ( List.append [(fixThisTag TaggedSexpr(x,valu) (string_of_int (getAndIncTagCounter 1)))] (tagFixConstList b) )*)
+      | Sexpr(something)           -> ( List.append [Sexpr(fixThisTag something (string_of_int (getAndIncTagCounter 1)))] (tagFixConstList b) )
+      | Void                       -> (tagFixConstList b) 
+    )
+  
+  and fixThisTag a fixer=
+    match a with
+    | Pair(first,second)  -> (pairTagFixer first second fixer) 
+    | TaggedSexpr(x,valu) -> (TaggedSexpr((x^fixer), (fixThisTag valu fixer)))
+    | TagRef(x)           -> (TagRef(x^fixer))
+    | any                 -> a
+  
+  
+  and pairTagFixer first second fixer = 
+    let fixedFirst = Sexpr(fixThisTag first fixer) in
+    let fixedSecond = Sexpr(fixThisTag second fixer) in
+    let fixFirst = (
+      match fixedFirst with
+      | Sexpr(something) -> something
+      | any -> raise X_syntax_error
+    ) in 
+    let fixSecond = (
+      match fixedSecond with
+      | Sexpr(something) -> something
+      | any -> raise X_syntax_error
+    ) in
+    (Pair(fixFirst,fixSecond))
+   *)
   and findConsts listOfExprs = 
   match listOfExprs with
     | []     -> []
@@ -152,7 +191,9 @@ module Code_Gen : CODE_GEN = struct
       
                 )
   
-  
+  (*TESTED WITH INPUT ABOVE - WORKS 
+  [(Sexpr (Pair (Number (Int 2), Pair (Number (Int 2), TagRef "y1"))))]
+  *)
   
   
   
@@ -247,8 +288,8 @@ module Code_Gen : CODE_GEN = struct
       | (x, (off, representation)) -> off 
   
   
-  
-  
+    (* TEST :  symbolTupleMaker (Sexpr(Symbol("aaa"))) [(Sexpr(String("aa")), (6,"something"));  (Sexpr(String("aaa")), (17, "something"))];;
+       EXPECTED OUTPUT: (Symbol "aaa", (23, "MAKE_SYMBOL(17)")) *)
   and symbolTupleMaker sexpr tuplesList = 
     let str = ( match sexpr with
       | Sexpr(Symbol(stri)) -> stri
@@ -340,7 +381,10 @@ module Code_Gen : CODE_GEN = struct
     | []     -> []
     | a :: b -> ( List.append (constScanner a) (seqConstScanHelper b) )
   
-  
+  (* test:
+  (Def' (Var' (VarFree "y"),
+   Const' (Sexpr (Pair (TaggedSexpr ("a", Bool true), Pair (TagRef "a", Nil))))))
+    *)
   ;;
 
 
@@ -542,7 +586,6 @@ and varParam_genHelper consts fvars mino envLayer =
 and varBound_genHelper consts fvars majo mino envLayer =
   let minor = (string_of_int mino) in   
   let major = (string_of_int majo) in   
-
 "   mov rax, qword[rbp+8*2]"                                      ^ " \n" ^
 "   mov rax, qword[rax+8*"^ major ^ "]"                           ^ " \n" ^
 "   mov rax, qword[rax+8*"^ minor ^ "]"                           ^ " \n" 
@@ -636,7 +679,16 @@ and or_genHelper consts fvars listOfexprs envLayer =
 
 
 
-  
+  (* 
+    First, we get uniqe label, then we concat assembly string:
+    eval test
+    cmp to false to see if jmp to else_label
+    eval dit
+    jmp to exit_label
+    else_label
+    eval dif
+    exit_label
+*)
 
 
 and if_genHelper consts fvars test dit dif envLayer =
@@ -666,7 +718,7 @@ and box_genHelper consts fvars name mino envLayer =
 and boxget_genHelper consts fvars head envLayer =
   (code_genScanner consts fvars (Var'(head)) envLayer)
                                                                   ^ " \n" ^
-  "mov rax, qword [rax]"                                          ^ " \n"
+  "mov rax, qword[rax]"                                           ^ " \n"
   
 
 
@@ -675,7 +727,7 @@ and boxset_genHelper consts fvars head valu envLayer =
   (code_genScanner consts fvars valu envLayer)                    ^ " \n " ^
   "push rax"                                                      ^ " \n " ^
   (code_genScanner consts fvars (Var'(head)) envLayer)            ^ " \n " ^
-  "pop qword [rax]"                                               ^ " \n " ^
+  "pop qword[rax]"                                                ^ " \n " ^
   "mov rax, SOB_VOID_ADDRESS"                                     ^ " \n " 
 
 
@@ -693,11 +745,19 @@ and def_genHelper consts fvars head valu envLayer =
   )
   | any -> raise X_syntax_error
 
-
-  
-
-
-
+(* 
+    First, we get uniqe label, then we concat assembly string:
+    allocate ExtEnv using malloc
+    copy pointers of minor vectors from Env to ExtEnv
+    allocate new vector for ExtEnv(0) using malloc
+    copy parameters from stack
+    allocate closure object, adress in rax
+    set rax.env = ExtEnv
+    set rax.code = Lcode
+    jmp Lcont
+    Lcode: save rbp, eval body, return.
+    Lcont: rest of code
+*)
 and simple_genHelper consts fvars bodyOfLambda envLayer =
   labelCounterInc();
   let sLabel = labelCounterGet() in
@@ -1053,6 +1113,7 @@ let expectedArgs = ((List.length lambdaParams)+1) in
 
 
 
+
   
 and applicTP_genHelper consts fvars rator rands envLayer =
   labelCounterInc();
@@ -1154,6 +1215,78 @@ and applicTP_genHelper consts fvars rator rands envLayer =
   open Tag_Parser;;
   open Semantics;;
   open Code_Gen;;
+
+
+  (* TEST AREA
+  
+   let yoav1 = 
+    make_consts_tbl
+    [(run_semantics
+     (tag_parse_expression
+      (read_sexpr
+        "(if 1 2 3)"
+      )
+     )
+    )];;
+
+    let yoav2 = 
+    make_fvars_tbl
+    [(run_semantics
+     (tag_parse_expression
+      (read_sexpr
+        "(if 1 2 3)"
+      )
+     )
+    )];;
+    let yoav3 = 
+    make_consts_tbl
+      [(run_semantics
+     (tag_parse_expression
+      (read_sexpr
+        "(define x '(a b 1 2 3 4 1 2))"
+      )
+     )
+    )];;
+
+      make_consts_tbl
+      [(run_semantics
+     (tag_parse_expression
+      (read_sexpr
+        "'(a)"
+            )
+          )
+        )];;
+
+        make_consts_tbl
+      [(run_semantics
+     (tag_parse_expression
+      (read_sexpr
+        "'a"
+            )
+          )
+        )];;
+
+    "(if 1 2 3)"
+  
+  Applic' (Def' (Var' (VarFree "x"), Const' (Sexpr (Number (Int 2)))),
+    [Def' (Var' (VarFree "y"), Const' (Sexpr (Number (Int 3))));
+     Def' (Var' (VarFree "z"), Const' (Sexpr (Number (Int 4))))])
+
+ make_consts_tbl [
+  Applic' (Def' (Var' (VarFree "x"), Const' (Sexpr (Number (Int 2)))),
+    [Def' (Var' (VarFree "y"), Const' (Sexpr (Number (Int 3))));
+     Def' (Var' (VarFree "z"), Const' (Sexpr (Number (Int 4))))])]
+  
+
+  run_semantics (
+    Applic (Def (Var "x", Const (Sexpr (Number (Int 2)))),
+   [Def (Var "y", Const (Sexpr (Number (Int 3))))])
+   );;  
+
+   tupleListMaker [Sexpr (String "a"); Sexpr (Symbol "a")] basicList;;
+
+
+  *) 
 
 
   

@@ -381,6 +381,7 @@ let bin_apply =
   bin_apply       ^ " \n" 
    );;
   
+   string_to_asts "(define l3 (list #{x}=(1 2 . #{y})  #{y}=(3 4 #{x}))) " ;;
   
   
    let tagCounter = ref 1 ;;
@@ -391,34 +392,34 @@ let bin_apply =
      valu;;
    
  
- let rec renameAsts asts = 
+ let rec renameAsts asts num = 
  match asts with
  | []     -> []
- | a :: b -> ( List.append [(constTagScanner a)] (renameAsts b) )
+ | a :: b -> ( List.append [(constTagScanner a num)] (renameAsts b (getAndIncTagCounter 1)) )
  
- and constTagScanner ast = 
+ and constTagScanner ast num = 
      match ast with
-     | Const'(Sexpr(something))                  -> ( Const'(Sexpr(fixThisAst something (string_of_int(getAndIncTagCounter 1)))) )
-     | Seq'(listOfexprs)                         -> ( Seq'(seqConstScanTags listOfexprs) )
-     | If'(test,dit,dif)                         -> ( If'((constTagScanner test) ,(constTagScanner dit) ,(constTagScanner dif)) )
-     | Or'(listOfexprs)                          -> ( Or'(seqConstScanTags listOfexprs) )
+     | Const'(Sexpr(something))                  -> ( Const'(Sexpr(fixThisAst something (string_of_int(num)))) )
+     | Seq'(listOfexprs)                         -> ( Seq'(seqConstScanTags listOfexprs num) )
+     | If'(test,dit,dif)                         -> ( If'((constTagScanner test num) ,(constTagScanner dit num) ,(constTagScanner dif num)) )
+     | Or'(listOfexprs)                          -> ( Or'(seqConstScanTags listOfexprs num) )
      | Var'(var)                                 -> ast
      | Box'(name)                                -> ast
      | BoxGet'(name)                             -> ast
-     | BoxSet'(name,valu)                        -> ( BoxSet'(name, (constTagScanner valu)) )
-     | Set'(vari, valu)                          -> ( Set'(vari, (constTagScanner valu)) ) (*   set is expr*expr, but we look at it as a var*expr   *)
-     | Def'(head, valu)                          -> ( Def'(head, (constTagScanner valu)) ) (*   def is expr*expr, but we look at it as a var*expr   *)
-     | LambdaSimple'(lambdaParams, bodyOfLambda) -> ( LambdaSimple'(lambdaParams, (constTagScanner bodyOfLambda)) )
-     | LambdaOpt'(lambdaParams,vs, bodyOfLambda) -> ( LambdaOpt'(lambdaParams,vs, (constTagScanner bodyOfLambda)) )
-     | Applic'(rator, rands)                     -> ( Applic'( (constTagScanner rator), (seqConstScanTags rands) ) )
-     | ApplicTP'(rator, rands)                   -> ( ApplicTP'( (constTagScanner rator), (seqConstScanTags rands) ) )
+     | BoxSet'(name,valu)                        -> ( BoxSet'(name, (constTagScanner valu num)) )
+     | Set'(vari, valu)                          -> ( Set'(vari, (constTagScanner valu num)) ) (*   set is expr*expr, but we look at it as a var*expr   *)
+     | Def'(head, valu)                          -> ( Def'(head, (constTagScanner valu num)) ) (*   def is expr*expr, but we look at it as a var*expr   *)
+     | LambdaSimple'(lambdaParams, bodyOfLambda) -> ( LambdaSimple'(lambdaParams, (constTagScanner bodyOfLambda num)) )
+     | LambdaOpt'(lambdaParams,vs, bodyOfLambda) -> ( LambdaOpt'(lambdaParams,vs, (constTagScanner bodyOfLambda num)) )
+     | Applic'(rator, rands)                     -> ( Applic'( (constTagScanner rator num), (seqConstScanTags rands num) ) )
+     | ApplicTP'(rator, rands)                   -> ( ApplicTP'( (constTagScanner rator num), (seqConstScanTags rands num) ) )
      | any                                       -> ast 
      
      
- and seqConstScanTags listOfExprs = 
+ and seqConstScanTags listOfExprs num = 
    match listOfExprs with
    | []     -> []
-   | a :: b -> ( List.append [(constTagScanner a)] (seqConstScanTags b) )
+   | a :: b -> ( List.append [(constTagScanner a num)] (seqConstScanTags b num) )
  
  
  and fixThisAst a fixer =
@@ -441,7 +442,7 @@ exception X_missing_input_file;;
 try
   let infile = Sys.argv.(1) in
   let code =  (file_to_string "stdlib.scm") ^ (file_to_string infile) in
-  let asts = renameAsts (string_to_asts code) in
+  let asts =  ( renameAsts (string_to_asts code) (getAndIncTagCounter 1) ) in
   let consts_tbl = Code_Gen.make_consts_tbl asts in
   let fvars_tbl = Code_Gen.make_fvars_tbl asts in
   let generate = Code_Gen.generate consts_tbl fvars_tbl in
